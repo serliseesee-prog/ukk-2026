@@ -1,262 +1,100 @@
 <?php
+require_once 'koneksi.php';
 
-session_start();
-
-if (!isset($_SESSION['id'])) {
+if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
-    exit;
+    exit();
 }
 
-$nama = $_SESSION['name'];
 $role = $_SESSION['role'];
-
+$nama = $_SESSION['nama_user'];
 ?>
 
 <!DOCTYPE html>
 <html lang="id">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Dashboard</title>
-
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .sidebar { min-height: 100vh; background-color: #212529; color: #fff; position: fixed; width: 250px; top: 0; left: 0; }
+        .sidebar a { color: #adb5bd; text-decoration: none; display: block; padding: 10px 20px; }
+        .sidebar a:hover, .sidebar a.active { color: #fff; background-color: #0d6efd; }
+        .main-content { margin-left: 250px; padding: 20px; }
+    </style>
 </head>
+<body>
 
-<body class="bg-light">
+    <!-- SIDEBAR -->
+    <div class="sidebar d-flex flex-column p-3">
+        <h4 class="text-white mb-4">Pelanggaran Siswa</h4>
+        <ul class="nav nav-pills flex-column mb-auto">
+            <li class="nav-item mb-1"><a href="dashboard.php" class="active">Dashboard</a></li>
+            <?php if ($role === 'admin'): ?>
+                <li class="nav-item mb-1"><a href="kelola_guru.php">Kelola Guru</a></li>
+                <li class="nav-item mb-1"><a href="kelola_siswa.php">Kelola Siswa</a></li>
+                <li class="nav-item mb-1"><a href="kelola_kelas.php">Kelola Kelas</a></li>
+                <li class="nav-item mb-1"><a href="kelola_tahun_ajaran.php">Kelola Tahun Ajaran</a></li>
+                <li class="nav-item mb-1"><a href="penempatan_siswa.php">Penempatan Siswa</a></li>
+                <li class="nav-item mb-1"><a href="kelola_wali_kelas.php">Kelola Wali Kelas</a></li>
+                <li class="nav-item mb-1"><a href="kelola_kategori_pelanggaran.php">Kelola Kategori Pelanggaran</a></li>
+                <li class="nav-item mb-1"><a href="laporan.php">laporan</a></li>
+                <li class="nav-item mb-1"><a href="kelola_jenis_pelanggaran.php">Kelola Jenis Pelanggaran</a></li>
+                <li class="nav-item mb-1"><a href="cetak/export.php">Cetak / Export</a></li>
+                <li class="nav-item mb-1"><a href="about_me.php">About Me</a></li>
+            <?php endif; ?>
 
-<div class="container-fluid">
-    <div class="row">
+            <?php if ($role === 'guru'): ?>
+                <li class="nav-item mb-1"><a href="catat_pelanggaran.php">Catat Pelanggaran</a></li>
+                <li class="nav-item mb-1"><a href="tindakan.php">Tindakan</a></li>
+                <li class="nav-item mb-1"><a href="riwayat.php">Riwayat</a></li>
+                <li class="nav-item mb-1"><a href="rekap_poin.php">Rekap Poin</a></li>
+            <?php endif; ?>
+        </ul>
+        <hr>
+        <a href="logout.php" class="text-danger">Logout</a>
+    </div>
 
-        <!-- SIDEBAR -->
-        <div class="col-md-3 col-lg-2 bg-white min-vh-100 p-3 border-end">
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <h2>Dashboard</h2>
+        <p>Pengguna: <strong><?= htmlspecialchars($nama); ?></strong> | Akses: <strong><?= strtoupper(htmlspecialchars($role)); ?></strong></p>
+        <hr>
 
-            <h4 class="text-primary mb-4">
-                PELANGGARAN SISWA
-            </h4>
-
-            <ul class="nav nav-pills flex-column">
-
-                <!-- DASHBOARD -->
-                <?php if ($role === 'guru') : ?>
-
-                    <li class="nav-item mb-2">
-                        <a href="dashboard.php" class="nav-link active">
-                            Dashboard
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu1.php" class="nav-link text-dark">
-                            Catatan Pelanggaran
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu1.php" class="nav-link text-dark">
-                            Tindakan
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu1.php" class="nav-link text-dark">
-                            Laporan
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu1.php" class="nav-link text-dark">
-                            Riwayat
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu1.php" class="nav-link text-dark">
-                            Rekap poin
-                        </a>
-                    </li>
-
-                <?php endif; ?>
-
-
-                <!-- MENU KHUSUS ADMIN -->
-                <?php if ($role === 'admin') : ?>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu1.php" class="nav-link text-dark">
-                            Kelola Siswa
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu2.php" class="nav-link text-dark">
-                            Kelola Guru
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu3.php" class="nav-link text-dark">
-                            Kelola Kelas
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu4.php" class="nav-link text-dark">
-                            Kelola Tahun Ajaran
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu5.php" class="nav-link text-dark">
-                            Penempatan Siswa
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu6.php" class="nav-link text-dark">
-                            Kelola Wali Kelas
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu7.php" class="nav-link text-dark">
-                            Kelola Kategori Pelanggaran
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu8.php" class="nav-link text-dark">
-                            Kelola Jenis Pelanggaran
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="menu9.php" class="nav-link text-dark">
-                            Cetak / Export
-                        </a>
-                    </li>
-
-                    <li class="nav-item mb-2">
-                        <a href="about.php" class="nav-link text-dark">
-                            About Me
-                        </a>
-                    </li>
-
-                <?php endif; ?>
-
-
-                <!-- GARIS PEMBATAS -->
-                <hr class="text-secondary">
-
-                <!-- LOGOUT -->
-                <li class="nav-item">
-                    <a href="logout.php" class="nav-link text-danger">
-                        Logout
-                    </a>
-                </li>
-
-            </ul>
-
-        </div>
-
-
-        <!-- KONTEN -->
-        <main class="col-md-9 col-lg-10 p-4">
-
-            <h2 class="text-primary">Dashboard</h2>
-
-            <p class="text-secondary">
-                Selamat datang,
-                <strong class="text-dark">
-                    <?= htmlspecialchars($nama); ?>
-                </strong>
-                <br>
-                Anda login sebagai
-                <strong class="text-primary">
-                    <?= strtoupper(htmlspecialchars($role)); ?>
-                </strong>
-            </p>
-
-
-            <div class="row">
-
-                <!-- CARD DATA SISWA -->
-                <div class="col-md-4 mb-3">
-
-                    <div class="card shadow-sm border-primary">
-
-                        <div class="card-body">
-
-                            <h5 class="card-title text-primary">
-                                Data Siswa
-                            </h5>
-
-                            <h2 class="text-dark">
-                                120
-                            </h2>
-
-                        </div>
-
+        <div class="row">
+            <!-- CARD DATA SISWA -->
+            <div class="col-md-4 mb-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">Data Siswa</h5>
+                        <h2>50</h2>
                     </div>
-
                 </div>
-
-
-                <!-- CARD DATA GURU -->
-                <div class="col-md-4 mb-3">
-
-                    <div class="card shadow-sm border-primary">
-
-                        <div class="card-body">
-
-                            <h5 class="card-title text-primary">
-                                Data Guru
-                            </h5>
-
-                            <h2 class="text-dark">
-                                25
-                            </h2>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <!-- CARD KELAS -->
-                <div class="col-md-4 mb-3">
-
-                    <div class="card shadow-sm border-primary">
-
-                        <div class="card-body">
-
-                            <h5 class="card-title text-primary">
-                                Kelas
-                            </h5>
-
-                            <h2 class="text-dark">
-                                12
-                            </h2>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
             </div>
 
-        </main>
+            <!-- CARD DATA GURU -->
+            <div class="col-md-4 mb-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">Data Guru</h5>
+                        <h2>50</h2>
+                    </div>
+                </div>
+            </div>
 
+            <!-- CARD KELAS -->
+            <div class="col-md-4 mb-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">Kelas</h5>
+                        <h2>50</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
 
-
-<!-- BOOTSTRAP JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
-
 </html>
