@@ -1,4 +1,3 @@
-
 <?php
 // KONEKSI DATABASE
 $lokasiKoneksi = __DIR__ . '/config/koneksi.php';
@@ -232,51 +231,72 @@ if (!$guru || !$kelas || !$tahun || !$data) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Kelola Wali Kelas</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-          rel="stylesheet">
-</head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; overflow: hidden; }
+        
+        /* Sidebar Tetap Diam / Fixed */
+        .sidebar { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 250px; 
+            height: 100vh; 
+            background-color: #212529; 
+            color: #fff; 
+            overflow-y: auto; 
+            z-index: 1000; 
+        }
+        .sidebar a { color: #adb5bd; text-decoration: none; display: block; padding: 10px 20px; }
+        .sidebar a:hover, .sidebar a.active { color: #fff; background-color: #0d6efd; }
+        
+        /* Konten Samping yang Bisa Di-scroll */
+        .main-content { 
+            margin-left: 250px; 
+            height: 100vh; 
+            overflow-y: auto; 
+            padding: 20px; 
+        }
 
-<body class="bg-light">
-<div class="container-fluid">
-<div class="row">
+        @media print {
+            .sidebar, .no-print { display: none !important; }
+            .main-content { margin-left: 0; padding: 0; overflow: visible; height: auto; }
+            body { overflow: visible; }
+        }
+    </style>
+</head>
+<body>
 
     <!-- SIDEBAR -->
-    <aside class="col-md-3 col-lg-2 bg-dark text-white min-vh-100 p-3">
-        <h4 class="mb-4">Pelanggaran Siswa</h4>
-        <p class="text-white-50 small">
-            Pengguna: <?= e($nama_user); ?>
-        </p>
+    <div class="sidebar d-flex flex-column p-3">
+        <h4 class="text-white mb-4">Pelanggaran Siswa</h4>
+        <ul class="nav nav-pills flex-column mb-auto">
+            <li class="nav-item mb-1"><a href="dashboard.php">Dashboard</a></li>
+            <li class="nav-item mb-1"><a href="kelola_guru.php">Kelola Guru</a></li>
+            <li class="nav-item mb-1"><a href="kelola_siswa.php">Kelola Siswa</a></li>
+            <li class="nav-item mb-1"><a href="kelola_kelas.php">Kelola Kelas</a></li>
+            <li class="nav-item mb-1"><a href="kelola_tahun_ajaran.php">Kelola Tahun Ajaran</a></li>
+            <li class="nav-item mb-1"><a href="penempatan_siswa.php">Penempatan Siswa</a></li>
+            <li class="nav-item mb-1"><a href="kelola_wali_kelas.php" class="active">Kelola Wali Kelas</a></li>
+            <li class="nav-item mb-1"><a href="kelola_kategori_pelanggaran.php">Kelola Kategori Pelanggaran</a></li>
+            <li class="nav-item mb-1"><a href="laporan.php">laporan</a></li>
+            <li class="nav-item mb-1"><a href="kelola_jenis_pelanggaran.php">Kelola Jenis Pelanggaran</a></li>
+            
+            <li class="nav-item mb-1"><a href="about.php">About Me</a></li>
+        </ul>
+        <hr>
+        <a href="logout.php" class="text-danger">Logout</a>
+    </div>
 
-        <nav class="nav nav-pills flex-column gap-1">
-            <a href="dashboard.php" class="nav-link text-white">Dashboard</a>
-            <a href="kelola_guru.php" class="nav-link text-white">Kelola Guru</a>
-            <a href="kelola_siswa.php" class="nav-link text-white">Kelola Siswa</a>
-            <a href="kelola_kelas.php" class="nav-link text-white">Kelola Kelas</a>
-            <a href="kelola_tahun_ajaran.php" class="nav-link text-white">Kelola Tahun Ajaran</a>
-            <a href="penempatan_siswa.php" class="nav-link text-white">Penempatan Siswa</a>
-            <a href="kelola_wali_kelas.php" class="nav-link active">Kelola Wali Kelas</a>
-            <a href="kelola_kategori_pelanggaran.php" class="nav-link text-white">Kelola Kategori Pelanggaran</a>
-            <a href="laporan.php" class="nav-link text-white">Laporan</a>
-            <a href="kelola_jenis_pelanggaran.php" class="nav-link text-white">Kelola Jenis Pelanggaran</a>
-            <a href="cetak/export.php" class="nav-link text-white">Cetak / Export</a>
-            <a href="about_me.php" class="nav-link text-white">About Me</a>
-            <hr>
-            <a href="logout.php" class="nav-link text-danger">Logout</a>
-        </nav>
-    </aside>
-
-    <!-- KONTEN -->
-    <main class="col-md-9 col-lg-10 p-4">
-        <h2 class="text-primary">Kelola Wali Kelas</h2>
-        <p class="text-secondary">
-            Atur guru wali kelas berdasarkan kelas dan tahun ajaran.
-        </p>
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <h2>Kelola Wali Kelas</h2>
+        <a href="dashboard.php">Dashboard</a> | <a href="logout.php">Logout</a><hr>
 
         <?php if ($pesan !== ''): ?>
             <div class="alert alert-info alert-dismissible fade show">
                 <?= e($pesan); ?>
-                <button type="button" class="btn-close"
-                        data-bs-dismiss="alert"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
 
@@ -285,11 +305,10 @@ if (!$guru || !$kelas || !$tahun || !$data) {
         <?php endif; ?>
 
         <!-- FORM -->
-        <div class="card shadow-sm border-0 mb-4">
+        <div class="card shadow-sm mb-4">
             <div class="card-header bg-primary text-white">
                 <?= !empty($edit['id']) ? 'Edit Wali Kelas' : 'Tambah Wali Kelas'; ?>
             </div>
-
             <div class="card-body">
                 <form method="POST" action="kelola_wali_kelas.php">
                     <input type="hidden" name="id" value="<?= e($edit['id']); ?>">
@@ -301,8 +320,7 @@ if (!$guru || !$kelas || !$tahun || !$data) {
                                 <option value="">-- Pilih Tahun Ajaran --</option>
                                 <?php while ($ta = mysqli_fetch_assoc($tahun)): ?>
                                     <option value="<?= e($ta['id']); ?>"
-                                        <?= (string)$edit['tahun_ajaran_id'] ===
-                                            (string)$ta['id'] ? 'selected' : ''; ?>>
+                                        <?= (string)$edit['tahun_ajaran_id'] === (string)$ta['id'] ? 'selected' : ''; ?>>
                                         <?= e($ta['nama']); ?>
                                     </option>
                                 <?php endwhile; ?>
@@ -315,8 +333,7 @@ if (!$guru || !$kelas || !$tahun || !$data) {
                                 <option value="">-- Pilih Kelas --</option>
                                 <?php while ($k = mysqli_fetch_assoc($kelas)): ?>
                                     <option value="<?= e($k['id']); ?>"
-                                        <?= (string)$edit['kelas_id'] ===
-                                            (string)$k['id'] ? 'selected' : ''; ?>>
+                                        <?= (string)$edit['kelas_id'] === (string)$k['id'] ? 'selected' : ''; ?>>
                                         <?= e($k['nama']); ?>
                                     </option>
                                 <?php endwhile; ?>
@@ -329,8 +346,7 @@ if (!$guru || !$kelas || !$tahun || !$data) {
                                 <option value="">-- Pilih Guru --</option>
                                 <?php while ($g = mysqli_fetch_assoc($guru)): ?>
                                     <option value="<?= e($g['id']); ?>"
-                                        <?= (string)$edit['guru_id'] ===
-                                            (string)$g['id'] ? 'selected' : ''; ?>>
+                                        <?= (string)$edit['guru_id'] === (string)$g['id'] ? 'selected' : ''; ?>>
                                         <?= e($g['nama']); ?>
                                     </option>
                                 <?php endwhile; ?>
@@ -340,29 +356,20 @@ if (!$guru || !$kelas || !$tahun || !$data) {
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Status Aktif</label>
                             <div class="form-check mt-2">
-                                <input class="form-check-input" type="checkbox"
-                                       name="status_aktif" id="status_aktif"
-                                       value="1"
-                                       <?= (int)$edit['status_aktif'] === 1
-                                           ? 'checked' : ''; ?>>
-                                <label class="form-check-label" for="status_aktif">
-                                    Aktif
-                                </label>
+                                <input class="form-check-input" type="checkbox" name="status_aktif" id="status_aktif" value="1"
+                                    <?= (int)$edit['status_aktif'] === 1 ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="status_aktif">Aktif</label>
                             </div>
                         </div>
 
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Tanggal Mulai</label>
-                            <input type="date" name="tanggal_mulai"
-                                   class="form-control"
-                                   value="<?= e($edit['tanggal_mulai']); ?>">
+                            <input type="date" name="tanggal_mulai" class="form-control" value="<?= e($edit['tanggal_mulai']); ?>">
                         </div>
 
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Tanggal Selesai</label>
-                            <input type="date" name="tanggal_selesai"
-                                   class="form-control"
-                                   value="<?= e($edit['tanggal_selesai']); ?>">
+                            <input type="date" name="tanggal_selesai" class="form-control" value="<?= e($edit['tanggal_selesai']); ?>">
                         </div>
                     </div>
 
@@ -371,20 +378,17 @@ if (!$guru || !$kelas || !$tahun || !$data) {
                     </button>
 
                     <?php if (!empty($edit['id'])): ?>
-                        <a href="kelola_wali_kelas.php" class="btn btn-secondary">
-                            Batal
-                        </a>
+                        <a href="kelola_wali_kelas.php" class="btn btn-secondary">Batal</a>
                     <?php endif; ?>
                 </form>
             </div>
         </div>
 
         <!-- TABEL -->
-        <div class="card shadow-sm border-0">
+        <div class="card shadow-sm mb-4">
             <div class="card-header bg-dark text-white">
                 Daftar Wali Kelas
             </div>
-
             <div class="card-body">
                 <div class="table-responsive">
                     <table class="table table-bordered table-striped table-hover align-middle">
@@ -397,7 +401,7 @@ if (!$guru || !$kelas || !$tahun || !$data) {
                                 <th>Tanggal Mulai</th>
                                 <th>Tanggal Selesai</th>
                                 <th>Status</th>
-                                <th>Aksi</th>
+                                <th class="text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -419,21 +423,14 @@ if (!$guru || !$kelas || !$tahun || !$data) {
                                         <?php endif; ?>
                                     </td>
                                     <td class="text-center">
-                                        <a href="kelola_wali_kelas.php?edit=<?= (int)$r['id']; ?>"
-                                           class="btn btn-sm btn-warning mb-1">Edit</a>
-                                        <a href="kelola_wali_kelas.php?hapus=<?= (int)$r['id']; ?>"
-                                           class="btn btn-sm btn-danger mb-1"
-                                           onclick="return confirm('Yakin ingin menghapus data wali kelas ini?')">
-                                            Hapus
-                                        </a>
+                                        <a href="kelola_wali_kelas.php?edit=<?= (int)$r['id']; ?>" class="btn btn-sm btn-warning mb-1">Edit</a>
+                                        <a href="kelola_wali_kelas.php?hapus=<?= (int)$r['id']; ?>" class="btn btn-sm btn-danger mb-1" onclick="return confirm('Yakin ingin menghapus data wali kelas ini?')">Hapus</a>
                                     </td>
                                 </tr>
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="8" class="text-center text-secondary">
-                                    Belum ada data wali kelas.
-                                </td>
+                                <td colspan="8" class="text-center text-secondary">Belum ada data wali kelas.</td>
                             </tr>
                         <?php endif; ?>
                         </tbody>
@@ -441,14 +438,8 @@ if (!$guru || !$kelas || !$tahun || !$data) {
                 </div>
             </div>
         </div>
+    </div>
 
-        <a href="dashboard.php" class="btn btn-outline-secondary mt-3">
-            Kembali ke Dashboard
-        </a>
-    </main>
-</div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
