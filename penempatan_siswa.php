@@ -235,7 +235,7 @@ function e($value) {
         </li>
 
         <li class="nav-item mb-1">
-            <a href="about.php">About Me</a>
+             <a href="about_me.php">About Me</a>
         </li>
     </ul>
 

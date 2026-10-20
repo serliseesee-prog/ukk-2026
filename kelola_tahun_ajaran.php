@@ -198,8 +198,12 @@ $data = mysqli_query($koneksi, "SELECT * FROM t_tahun_ajaran");
     <!-- KONTEN UTAMA -->
     <div class="main-content">
         <h2>Kelola Tahun Ajaran</h2>
-        <a href="dashboard.php">Dashboard</a> |
-        <a href="logout.php">Logout</a>
+        <div class="mb-3">
+        <a href="dashboard.php" class="btn btn-secondary">
+            Kembali ke Dashboard 
+        </a>
+         
+    </div>
         <hr>
 
         <!-- FORM TAMBAH / EDIT -->

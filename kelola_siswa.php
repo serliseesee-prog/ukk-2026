@@ -201,7 +201,11 @@ $data = mysqli_query($koneksi, "SELECT * FROM t_siswa");
     <!-- MAIN CONTENT -->
     <div class="main-content">
         <h2 class="mb-3">Kelola Siswa</h2>
-        <a href="dashboard.php">Dashboard</a>
+         <div class="mb-3">
+        <a href="dashboard.php" class="btn btn-secondary">
+            Kembali ke Dashboard
+        </a>
+    </div>
         <hr>
 
         <!-- FORM TAMBAH / EDIT -->
