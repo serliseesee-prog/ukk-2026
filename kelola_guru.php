@@ -229,6 +229,7 @@ if (!$data) {
                     <label class="form-label">NIP:</label>
                     <input type="text" name="nip"
                            class="form-control"
+                            maxlength="10"
                            value="<?= htmlspecialchars($edit['nip'] ?? ''); ?>"
                            required>
                 </div>
