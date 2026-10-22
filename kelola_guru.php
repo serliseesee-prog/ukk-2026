@@ -1,4 +1,3 @@
-
 <?php
 require_once 'koneksi.php';
 
@@ -7,99 +6,80 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
-// SIMPAN DAN EDIT DATA GURU
+// 1. PROSES SIMPAN (TAMBAH / EDIT)
 if (isset($_POST['simpan'])) {
-    $id = (int)($_POST['id'] ?? 0);
-    $nip = mysqli_real_escape_string($koneksi, trim($_POST['nip'] ?? ''));
-    $nama = mysqli_real_escape_string($koneksi, trim($_POST['nama'] ?? ''));
-    $email = mysqli_real_escape_string($koneksi, trim($_POST['email'] ?? ''));
+    $id = $_POST['id'] ?? '';
+    $nip = mysqli_real_escape_string($koneksi, $_POST['nip'] ?? '');
+    $nama = mysqli_real_escape_string($koneksi, $_POST['nama'] ?? '');
+    $email = mysqli_real_escape_string($koneksi, $_POST['email'] ?? '');
+    $status = (isset($_POST['status_aktif']) && $_POST['status_aktif'] == 'Aktif') ? 1 : 0;
+    $password = $_POST['password'] ?? '';
+    $konfirmasi = $_POST['konfirmasi_password'] ?? '';
 
-    if ($id > 0) {
-        $query = "UPDATE t_guru
-                  SET nip='$nip', nama='$nama', email='$email'
-                  WHERE id='$id'";
-    } else {
-        $query = "INSERT INTO t_guru (nip, nama, email)
-                  VALUES ('$nip', '$nama', '$email')";
-    }
-
-    if (mysqli_query($koneksi, $query)) {
-        header("Location: kelola_guru.php");
+    if (!empty($password) && $password !== $konfirmasi) {
+        echo "<script>alert('Konfirmasi password tidak cocok!'); window.history.back();</script>";
         exit();
-    } else {
-        die("Gagal menyimpan data guru: " . htmlspecialchars(mysqli_error($koneksi)));
     }
+    
+    if (!empty($id)) {
+        $d_old = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT user_id FROM t_guru WHERE id='$id'"));
+        mysqli_query($koneksi, "UPDATE t_guru SET nip='$nip', nama='$nama', email='$email', status_aktif='$status' WHERE id='$id'");
+        
+        if (!empty($d_old['user_id'])) {
+            $pass_query = !empty($password) ? ", password='".password_hash($password, PASSWORD_DEFAULT)."'" : "";
+            mysqli_query($koneksi, "UPDATE t_users SET name='$nama', email='$email' $pass_query WHERE id='{$d_old['user_id']}'");
+        }
+    } else {
+        $hashed = !empty($password) ? password_hash($password, PASSWORD_DEFAULT) : password_hash('123456', PASSWORD_DEFAULT);
+        mysqli_query($koneksi, "INSERT INTO t_users (name, email, password, role) VALUES ('$nama', '$email', '$hashed', 'guru')");
+        $user_id_baru = mysqli_insert_id($koneksi);
+        mysqli_query($koneksi, "INSERT INTO t_guru (nip, nama, email, status_aktif, user_id) VALUES ('$nip', '$nama', '$email', '$status', '$user_id_baru')");
+    }
+    header("Location: kelola_guru.php");
+    exit();
 }
 
-// HAPUS DATA GURU
+// 2. PROSES HAPUS (MEMBERSIHKAN RELASI)
 if (isset($_GET['hapus'])) {
-    $id_hapus = (int)$_GET['hapus'];
-
-    if (mysqli_query($koneksi, "DELETE FROM t_guru WHERE id='$id_hapus'")) {
-        header("Location: kelola_guru.php");
-        exit();
-    } else {
-        die("Gagal menghapus data guru: " . htmlspecialchars(mysqli_error($koneksi)));
+    $id_guru = (int)$_GET['hapus'];
+    $get_guru = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT user_id FROM t_guru WHERE id='$id_guru'"));
+    
+    mysqli_query($koneksi, "DELETE FROM t_pelanggaran_siswa WHERE guru_id='$id_guru'");
+    mysqli_query($koneksi, "DELETE FROM t_wali_kelas WHERE guru_id='$id_guru'");
+    mysqli_query($koneksi, "DELETE FROM t_guru WHERE id='$id_guru'");
+    if (!empty($get_guru['user_id'])) {
+        mysqli_query($koneksi, "DELETE FROM t_users WHERE id='{$get_guru['user_id']}'");
     }
+    header("Location: kelola_guru.php");
+    exit();
 }
 
 // AMBIL DATA UNTUK EDIT
-$edit = [
-    'id' => '',
-    'nip' => '',
-    'nama' => '',
-    'email' => ''
-];
-
-if (isset($_GET['edit'])) {
-    $id_edit = (int)$_GET['edit'];
-
-    $hasil_edit = mysqli_query(
-        $koneksi,
-        "SELECT id, nip, nama, email
-         FROM t_guru
-         WHERE id='$id_edit'"
-    );
-
-    if ($hasil_edit && mysqli_num_rows($hasil_edit) > 0) {
-        $edit = mysqli_fetch_assoc($hasil_edit);
-    }
-}
+$edit_id = $_GET['edit'] ?? '';
+$edit = $edit_id ? mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT * FROM t_guru WHERE id='$edit_id'")) : null;
 
 // AMBIL SEMUA DATA GURU
-$data = mysqli_query(
-    $koneksi,
-    "SELECT id, nip, nama, email
-     FROM t_guru
-     ORDER BY nama ASC"
-);
-
+$data = mysqli_query($koneksi, "SELECT * FROM t_guru ORDER BY nama ASC");
 if (!$data) {
     die("Gagal mengambil data guru: " . htmlspecialchars(mysqli_error($koneksi)));
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Kelola Guru</title>
 
-    <!-- Bootstrap -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-          rel="stylesheet">
-
-    <!-- DataTables Bootstrap 5 -->
-    <link href="https://cdn.datatables.net/2.3.4/css/dataTables.bootstrap5.min.css"
-          rel="stylesheet">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- DataTables Bootstrap 5 CSS -->
+    <link href="https://cdn.datatables.net/2.3.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
 
     <style>
         body {
             background-color: #f8f9fa;
         }
-
         .sidebar {
             min-height: 100vh;
             background-color: #212529;
@@ -110,7 +90,6 @@ if (!$data) {
             left: 0;
             overflow-y: auto;
         }
-
         .sidebar a {
             color: #adb5bd;
             text-decoration: none;
@@ -118,148 +97,119 @@ if (!$data) {
             padding: 10px 20px;
             border-radius: 5px;
         }
-
         .sidebar a:hover,
         .sidebar a.active {
             color: #fff;
             background-color: #0d6efd;
         }
-
         .main-content {
             margin-left: 250px;
             padding: 20px;
             min-width: 0;
         }
-
         @media (max-width: 767.98px) {
             .sidebar {
                 position: relative;
                 width: 100%;
                 min-height: auto;
             }
-
             .main-content {
                 margin-left: 0;
             }
         }
     </style>
 </head>
-
 <body>
 
 <!-- SIDEBAR -->
 <div class="sidebar d-flex flex-column p-3">
     <h4 class="text-white mb-4">Pelanggaran Siswa</h4>
-
     <ul class="nav nav-pills flex-column mb-auto">
-        <li class="nav-item mb-1">
-            <a href="dashboard.php">Dashboard</a>
-        </li>
-
-        <li class="nav-item mb-1">
-            <a href="kelola_guru.php" class="active">Kelola Guru</a>
-        </li>
-
-        <li class="nav-item mb-1">
-            <a href="kelola_siswa.php">Kelola Siswa</a>
-        </li>
-
-        <li class="nav-item mb-1">
-            <a href="kelola_kelas.php">Kelola Kelas</a>
-        </li>
-
-        <li class="nav-item mb-1">
-            <a href="kelola_tahun_ajaran.php">Kelola Tahun Ajaran</a>
-        </li>
-
-        <li class="nav-item mb-1">
-            <a href="penempatan_siswa.php">Penempatan Siswa</a>
-        </li>
-
-        <li class="nav-item mb-1">
-            <a href="kelola_wali_kelas.php">Kelola Wali Kelas</a>
-        </li>
-
-        <li class="nav-item mb-1">
-            <a href="kelola_kategori_pelanggaran.php">Kelola Kategori Pelanggaran</a>
-        </li>
-
-        <li class="nav-item mb-1">
-            <a href="laporan.php">Laporan</a>
-        </li>
-
-        <li class="nav-item mb-1">
-            <a href="kelola_jenis_pelanggaran.php">Kelola Jenis Pelanggaran</a>
-        </li>
-
-        <li class="nav-item mb-1">
-            <a href="about_me.php">About Me</a>
-        </li>
+        <li class="nav-item mb-1"><a href="dashboard.php">Dashboard</a></li>
+        <li class="nav-item mb-1"><a href="kelola_guru.php" class="active">Kelola Guru</a></li>
+        <li class="nav-item mb-1"><a href="kelola_siswa.php">Kelola Siswa</a></li>
+        <li class="nav-item mb-1"><a href="kelola_kelas.php">Kelola Kelas</a></li>
+        <li class="nav-item mb-1"><a href="kelola_tahun_ajaran.php">Kelola Tahun Ajaran</a></li>
+        <li class="nav-item mb-1"><a href="penempatan_siswa.php">Penempatan Siswa</a></li>
+        <li class="nav-item mb-1"><a href="kelola_wali_kelas.php">Kelola Wali Kelas</a></li>
+        <li class="nav-item mb-1"><a href="kelola_kategori_pelanggaran.php">Kelola Kategori Pelanggaran</a></li>
+        <li class="nav-item mb-1"><a href="laporan.php">Laporan</a></li>
+        <li class="nav-item mb-1"><a href="kelola_jenis_pelanggaran.php">Kelola Jenis Pelanggaran</a></li>
+        <li class="nav-item mb-1"><a href="about_me.php">About Me</a></li>
     </ul>
-
     <hr>
-
     <a href="logout.php" class="text-danger">Logout</a>
 </div>
 
 <!-- KONTEN UTAMA -->
 <div class="main-content">
 
-    <h2 class="mb-3">Kelola Guru</h2>
-
     <div class="mb-3">
         <a href="dashboard.php" class="btn btn-secondary">
             Kembali ke Dashboard
         </a>
+        <hr>
     </div>
 
-    <!-- FORM TAMBAH / EDIT -->
+    <!-- FORM TAMBAH / EDIT DATA GURU -->
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-primary text-white">
-            <?= !empty($edit['id']) ? 'Edit Data Guru' : 'Tambah Data Guru'; ?>
+            <?= $edit ? 'Edit Data Guru' : 'Tambah Data Guru'; ?>
         </div>
-
         <div class="card-body">
-            <form method="POST" action="kelola_guru.php">
-
-                <input type="hidden" name="id"
-                       value="<?= htmlspecialchars((string)$edit['id']); ?>">
+            <form method="POST">
+                <input type="hidden" name="id" value="<?= htmlspecialchars($edit['id'] ?? ''); ?>">
 
                 <div class="mb-3">
-                    <label class="form-label">NIP:</label>
-                    <input type="text" name="nip"
-                           class="form-control"
-                            maxlength="10"
-                           value="<?= htmlspecialchars($edit['nip'] ?? ''); ?>"
+                    <label class="form-label">NIP</label>
+                    <input type="text" name="nip" class="form-control" 
+                           value="<?= htmlspecialchars($edit['nip'] ?? ''); ?>" 
+                           maxlength="18" 
+                           oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,18)" 
                            required>
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">Nama:</label>
-                    <input type="text" name="nama"
-                           class="form-control"
-                           value="<?= htmlspecialchars($edit['nama'] ?? ''); ?>"
+                    <label class="form-label">Nama</label>
+                    <input type="text" name="nama" class="form-control" 
+                           value="<?= htmlspecialchars($edit['nama'] ?? ''); ?>" 
                            required>
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">Email:</label>
-                    <input type="email" name="email"
-                           class="form-control"
-                           value="<?= htmlspecialchars($edit['email'] ?? ''); ?>"
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-control" 
+                           value="<?= htmlspecialchars($edit['email'] ?? ''); ?>" 
                            required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Password Login</label>
+                    <input type="password" name="password" class="form-control" 
+                           placeholder="<?= $edit ? 'Kosongkan jika tidak ingin mengubah password' : 'Masukkan password'; ?>">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Konfirmasi Password</label>
+                    <input type="password" name="konfirmasi_password" class="form-control" 
+                           placeholder="Ulangi password">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Status Aktif</label>
+                    <select name="status_aktif" class="form-control" required>
+                        <option value="Aktif" <?= (($edit['status_aktif'] ?? 1) == 1) ? 'selected' : ''; ?>>Aktif</option>
+                        <option value="Tidak Aktif" <?= (($edit['status_aktif'] ?? 1) == 0) ? 'selected' : ''; ?>>Tidak Aktif</option>
+                    </select>
                 </div>
 
                 <button type="submit" name="simpan" class="btn btn-primary">
-                    <?= !empty($edit['id']) ? 'Update Data' : 'Simpan'; ?>
+                    <?= $edit ? 'Update Data' : 'Simpan'; ?>
                 </button>
 
-                <?php if (!empty($edit['id'])): ?>
-                    <a href="kelola_guru.php" class="btn btn-secondary">
-                        Batal
-                    </a>
+                <?php if ($edit): ?>
+                    <a href="kelola_guru.php" class="btn btn-secondary">Batal</a>
                 <?php endif; ?>
-
             </form>
         </div>
     </div>
@@ -269,12 +219,9 @@ if (!$data) {
         <div class="card-header bg-dark text-white">
             Data Guru
         </div>
-
         <div class="card-body">
             <div class="table-responsive">
-                <table id="tabelGuru"
-                       class="table table-bordered table-striped table-hover align-middle w-100">
-
+                <table id="tabelGuru" class="table table-bordered table-striped table-hover align-middle w-100">
                     <thead class="table-dark">
                         <tr>
                             <th>No</th>
@@ -284,35 +231,20 @@ if (!$data) {
                             <th>Aksi</th>
                         </tr>
                     </thead>
-
                     <tbody>
                         <?php $no = 1; ?>
-
                         <?php while ($r = mysqli_fetch_assoc($data)): ?>
                             <tr>
                                 <td><?= $no++; ?></td>
-
-                                <td>
-                                    <?= htmlspecialchars($r['nip'] ?? ''); ?>
-                                </td>
-
-                                <td>
-                                    <?= htmlspecialchars($r['nama'] ?? ''); ?>
-                                </td>
-
-                                <td>
-                                    <?= htmlspecialchars($r['email'] ?? ''); ?>
-                                </td>
-
+                                <td><?= htmlspecialchars($r['nip'] ?? ''); ?></td>
+                                <td><?= htmlspecialchars($r['nama'] ?? ''); ?></td>
+                                <td><?= htmlspecialchars($r['email'] ?? ''); ?></td>
                                 <td>
                                     <div class="d-flex gap-1">
-                                        <a href="kelola_guru.php?edit=<?= (int)$r['id']; ?>"
-                                           class="btn btn-sm btn-warning">
+                                        <a href="kelola_guru.php?edit=<?= (int)$r['id']; ?>" class="btn btn-sm btn-warning">
                                             Edit
                                         </a>
-
-                                        <a href="kelola_guru.php?hapus=<?= (int)$r['id']; ?>"
-                                           class="btn btn-sm btn-danger"
+                                        <a href="kelola_guru.php?hapus=<?= (int)$r['id']; ?>" class="btn btn-sm btn-danger"
                                            onclick="return confirm('Yakin ingin menghapus data guru ini?')">
                                             Hapus
                                         </a>
@@ -321,7 +253,6 @@ if (!$data) {
                             </tr>
                         <?php endwhile; ?>
                     </tbody>
-
                 </table>
             </div>
         </div>
@@ -329,17 +260,13 @@ if (!$data) {
 
 </div>
 
-<!-- JavaScript Bootstrap -->
+<!-- JavaScript Dependencies -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-<!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
-<!-- DataTables JavaScript -->
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.bootstrap5.min.js"></script>
 
-<!-- AKTIFKAN DATATABLES -->
+<!-- Inisialisasi DataTables -->
 <script>
 $(document).ready(function () {
     $('#tabelGuru').DataTable({
