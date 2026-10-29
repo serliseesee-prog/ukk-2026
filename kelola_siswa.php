@@ -89,8 +89,8 @@ $no = $offset + 1;
                 <form method="POST">
                     <input type="hidden" name="id" value="<?= $edit['id'] ?? ''; ?>">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">NIS (Maks. 8 Angka):</label>
-                        <input type="text" name="nis" class="form-control" value="<?= htmlspecialchars($edit['nis'] ?? ''); ?>" maxlength="8" pattern="\d{1,8}" required>
+                        <label class="form-label fw-bold">NIS (Maks. 10 Angka):</label>
+                        <input type="text" name="nis" class="form-control" value="<?= htmlspecialchars($edit['nis'] ?? ''); ?>" maxlength="10" pattern="\d{1,10}" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">NISN (Maks. 10 Angka):</label>
@@ -103,6 +103,7 @@ $no = $offset + 1;
                     <div class="mb-3">
                         <label class="form-label fw-bold">Jenis Kelamin:</label>
                         <select name="jenis_kelamin" class="form-control" required>
+                            <option value="L" <?= (($edit['jenis_kelamin'] ?? '') == 'L') ? 'selected' : ''; ?>></option>
                             <option value="L" <?= (($edit['jenis_kelamin'] ?? '') == 'L') ? 'selected' : ''; ?>>Laki-laki</option>
                             <option value="P" <?= (($edit['jenis_kelamin'] ?? '') == 'P') ? 'selected' : ''; ?>>Perempuan</option>
                         </select>

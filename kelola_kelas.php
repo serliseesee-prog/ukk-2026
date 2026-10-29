@@ -125,7 +125,10 @@ $no = $offset + 1;
                 <h2>Kelola Kelas</h2>
                 <a href="?aksi=tambah" class="btn btn-primary btn-sm">+ Tambah</a>
             </div>
-            <a href="dashboard.php">Dashboard</a> | <a href="logout.php">Logout</a><hr>
+                <a href="dashboard.php" class="btn btn-secondary">
+            Kembali ke Dashboard
+        </a>
+        <hr>
 
             <div class="card shadow-sm"><div class="card-body">
                 <div class="row mb-3 justify-content-between">
