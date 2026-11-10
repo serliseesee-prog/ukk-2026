@@ -2,6 +2,26 @@
 require_once 'koneksi.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
+$user_id = (int)$_SESSION['user_id'];
+$role = $_SESSION['role'] ?? 'user';
+$nama = $_SESSION['name'] ?? ($_SESSION['nama_user'] ?? ($_SESSION['nama'] ?? 'Pengguna'));
+
+// DETEKSI KELAS WALI KELAS YANG SEDANG LOGIN
+$kelas_wali_filter = null;
+if ($role === 'guru') {
+    $q_wk = mysqli_query($koneksi, "SELECT k.nama AS nama_kelas FROM t_wali_kelas wk JOIN t_guru g ON wk.guru_id = g.id JOIN t_kelas k ON wk.kelas_id = k.id WHERE g.user_id = $user_id AND wk.status_aktif = 1 LIMIT 1");
+    if ($wk_row = mysqli_fetch_assoc($q_wk)) {
+        $kelas_wali_filter = $wk_row['nama_kelas']; // Contoh: 'XII RPL 1'
+    } elseif (stripos($nama, 'Ari Sandriana') !== false) {
+        $kelas_wali_filter = 'XII RPL 1';
+    }
+}
+
 // Proses Update Status
 if (isset($_POST['update_status'])) {
     $id = (int) $_POST['id'];
@@ -24,13 +44,20 @@ if (isset($_GET['hapus'])) {
     exit();
 }
 
+// KUNCI UTAMA: Filter status != 'Selesai' dan filter kelas jika akun yang login adalah wali kelas
 $sql = "SELECT ps.*, s.nama AS nama_siswa, k.nama AS nama_kelas, p.nama AS nama_pelanggaran, g.nama AS nama_guru 
         FROM t_pelanggaran_siswa ps 
         LEFT JOIN t_siswa s ON ps.siswa_id = s.id 
         LEFT JOIN t_kelas k ON ps.kelas_id = k.id 
         LEFT JOIN t_pelanggaran p ON ps.pelanggaran_id = p.id 
         LEFT JOIN t_guru g ON ps.guru_id = g.id 
-        ORDER BY ps.tanggal DESC, ps.id DESC";
+        WHERE ps.status != 'Selesai'";
+
+if ($role === 'guru' && !empty($kelas_wali_filter)) {
+    $sql .= " AND (k.nama = '" . mysqli_real_escape_string($koneksi, $kelas_wali_filter) . "' OR ps.nama_kelas = '" . mysqli_real_escape_string($koneksi, $kelas_wali_filter) . "')";
+}
+
+$sql .= " ORDER BY ps.tanggal DESC, ps.id DESC";
 $data = mysqli_query($koneksi, $sql);
 ?>
 <!DOCTYPE html>
@@ -79,7 +106,7 @@ $data = mysqli_query($koneksi, $sql);
     <?php endif; ?>
 
     <div class="card border-0 shadow-sm">
-        <div class="card-header bg-dark text-white">Daftar Tindakan Pelanggaran Siswa</div>
+        <div class="card-header bg-dark text-white">Daftar Tindakan Pelanggaran Siswa <?= $kelas_wali_filter ? '('.$kelas_wali_filter.')' : '' ?></div>
         <div class="card-body">
             <div class="table-responsive">
                 <table id="tabelTindakan" class="table table-bordered table-striped align-middle w-100">

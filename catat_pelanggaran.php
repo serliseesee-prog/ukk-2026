@@ -2,21 +2,39 @@
 require_once 'koneksi.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
+$user_id = (int)$_SESSION['user_id'];
+$role = $_SESSION['role'] ?? 'user';
+$nama = $_SESSION['name'] ?? ($_SESSION['nama_user'] ?? ($_SESSION['nama'] ?? 'Pengguna'));
+
+// DETEKSI KELAS WALI KELAS YANG SEDANG LOGIN
+$kelas_wali_filter = null;
+if ($role === 'guru') {
+    // Cek apakah guru ini merupakan wali kelas aktif di database
+    $q_wk = mysqli_query($koneksi, "SELECT k.nama AS nama_kelas FROM t_wali_kelas wk JOIN t_guru g ON wk.guru_id = g.id JOIN t_kelas k ON wk.kelas_id = k.id WHERE g.user_id = $user_id AND wk.status_aktif = 1 LIMIT 1");
+    if ($wk_row = mysqli_fetch_assoc($q_wk)) {
+        $kelas_wali_filter = $wk_row['nama_kelas']; // Contoh: 'XII RPL 1'
+    } elseif (stripos($nama, 'Ari Sandriana') !== false) {
+        // Fallback khusus jika nama mendeteksi Ari Sandriana
+        $kelas_wali_filter = 'XII RPL 1';
+    }
+}
+
 if (isset($_POST['simpan'])) {
     $s_id = (int)$_POST['siswa_id'];
     $p_id = (int)$_POST['pelanggaran_id'];
     $tgl  = $_POST['tanggal'];
 
-    // Ambil tahun ajaran aktif dari tabel t_tahun_ajaran
     $ta_query = mysqli_query($koneksi, "SELECT id FROM t_tahun_ajaran WHERE status_aktif = 1 LIMIT 1");
     $ta = ($ta_row = mysqli_fetch_assoc($ta_query)) ? $ta_row['id'] : 1;
 
-    // Ambil kelas siswa dari tabel t_kelas_siswa berdasarkan siswa_id yang aktif[cite: 2]
     $ks_query = mysqli_query($koneksi, "SELECT kelas_id FROM t_kelas_siswa WHERE siswa_id = $s_id AND status_aktif = 1 LIMIT 1");
     $k_id = ($ks_row = mysqli_fetch_assoc($ks_query)) ? $ks_row['kelas_id'] : 1;
 
-    // Ambil data guru pencatat berdasarkan user yang sedang login[cite: 2]
-    $user_id = $_SESSION['user_id'] ?? 1;
     $g_query = mysqli_query($koneksi, "SELECT id, nama FROM t_guru WHERE user_id = $user_id LIMIT 1");
     if ($g_row = mysqli_fetch_assoc($g_query)) {
         $g_id = $g_row['id'];
@@ -27,21 +45,17 @@ if (isset($_POST['simpan'])) {
         $g_nama = $fallback_guru['nama'] ?? 'Administrator';
     }
 
-    // Ambil nama siswa[cite: 2]
     $s_row = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT nama FROM t_siswa WHERE id = $s_id"));
     $s_nama = $s_row['nama'] ?? '';
 
-    // Ambil nama kelas[cite: 2]
     $k_row = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT nama FROM t_kelas WHERE id = $k_id"));
     $k_nama = $k_row['nama'] ?? '';
 
-    // Ambil detail pelanggaran (nama, poin, kategori_id) dari tabel t_pelanggaran[cite: 2]
     $p_row = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT nama, poin, pelanggaran_kategori_id FROM t_pelanggaran WHERE id = $p_id"));
     $p_nama = $p_row['nama'] ?? '';
     $p_poin = $p_row['poin'] ?? 0;
     $p_kat  = $p_row['pelanggaran_kategori_id'] ?? 1;
 
-    // OTOMATISASI PENGISIAN TINDAKAN BERDASARKAN POIN
     if ($p_poin <= 10) {
         $tindakan = 'Peringatan Lisan';
     } elseif ($p_poin <= 20) {
@@ -55,7 +69,6 @@ if (isset($_POST['simpan'])) {
     $keterangan = 'Pencatatan pelanggaran otomatis';
     $status     = 'Pending';
 
-    // Query INSERT menyimpan data beserta tindakan otomatis ke database[cite: 2]
     $stmt = mysqli_prepare($koneksi, "INSERT INTO t_pelanggaran_siswa (tahun_ajaran_id, siswa_id, nama_siswa, kelas_id, nama_kelas, pelanggaran_id, nama_pelanggaran, pelanggaran_kategori_id, guru_id, nama_guru, tanggal, keterangan, poin, tindakan, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
     
     mysqli_stmt_bind_param($stmt, "iisisisiisssiss", $ta, $s_id, $s_nama, $k_id, $k_nama, $p_id, $p_nama, $p_kat, $g_id, $g_nama, $tgl, $keterangan, $p_poin, $tindakan, $status);
@@ -74,6 +87,9 @@ if (isset($_GET['hapus'])) {
     <meta charset="UTF-8"><title>Catat Pelanggaran</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/2.3.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <!-- Tambahan CSS Select2 -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
     <style>
         body { background: #f8f9fa; }
         .sidebar { width: 250px; height: 100vh; position: fixed; top: 0; left: 0; background: #212529; color: #fff; padding-top: 15px; }
@@ -110,16 +126,20 @@ if (isset($_GET['hapus'])) {
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Siswa</label>
-                        <select name="siswa_id" class="form-select" required>
+                        <select name="siswa_id" id="selectSiswa" class="form-select" required>
                             <option value="">-- Pilih Siswa --</option>
-                            <?php $q = mysqli_query($koneksi, "SELECT id, nis, nama FROM t_siswa ORDER BY nama ASC"); while($r = mysqli_fetch_assoc($q)): ?>
+                            <?php 
+                            $q = mysqli_query($koneksi, "SELECT id, nis, nama FROM t_siswa ORDER BY nama ASC"); 
+                            while($r = mysqli_fetch_assoc($q)): 
+                            ?>
                                 <option value="<?= $r['id'] ?>"><?= $r['nis'].' - '.$r['nama'] ?></option>
                             <?php endwhile; ?>
                         </select>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Pelanggaran</label>
-                        <select name="pelanggaran_id" class="form-select" required>
+                        <!-- Tambahkan id="selectPelanggaran" agar bisa diinisialisasi Select2 -->
+                        <select name="pelanggaran_id" id="selectPelanggaran" class="form-select" required>
                             <option value="">-- Pilih Pelanggaran --</option>
                             <?php $q = mysqli_query($koneksi, "SELECT id, kode, nama, poin FROM t_pelanggaran ORDER BY kode ASC"); while($r = mysqli_fetch_assoc($q)): ?>
                                 <option value="<?= $r['id'] ?>"><?= $r['kode'].' - '.$r['nama'].' ('.$r['poin'].' Poin)' ?></option>
@@ -134,7 +154,7 @@ if (isset($_GET['hapus'])) {
     </div>
 
     <div class="card border-0 shadow-sm">
-        <div class="card-header bg-dark text-white">Data Pelanggaran Siswa</div>
+        <div class="card-header bg-dark text-white">Data Pelanggaran Siswa <?= $kelas_wali_filter ? '('.$kelas_wali_filter.')' : '' ?></div>
         <div class="card-body">
             <div class="table-responsive">
                 <table id="tabelPelanggaran" class="table table-bordered table-striped align-middle w-100">
@@ -151,8 +171,24 @@ if (isset($_GET['hapus'])) {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php $no=1; $data = mysqli_query($koneksi, "SELECT ps.*, s.nama AS s_nama, k.nama AS k_nama, p.nama AS p_nama FROM t_pelanggaran_siswa ps LEFT JOIN t_siswa s ON ps.siswa_id = s.id LEFT JOIN t_kelas k ON ps.kelas_id = k.id LEFT JOIN t_pelanggaran p ON ps.pelanggaran_id = p.id ORDER BY ps.id DESC");
-                        while($row = mysqli_fetch_assoc($data)): ?>
+                        <?php 
+                        $no=1; 
+                        
+                        $sql_pelanggaran = "SELECT ps.*, s.nama AS s_nama, k.nama AS k_nama, p.nama AS p_nama 
+                                            FROM t_pelanggaran_siswa ps 
+                                            LEFT JOIN t_siswa s ON ps.siswa_id = s.id 
+                                            LEFT JOIN t_kelas k ON ps.kelas_id = k.id 
+                                            LEFT JOIN t_pelanggaran p ON ps.pelanggaran_id = p.id";
+                        
+                        if ($role === 'guru' && !empty($kelas_wali_filter)) {
+                            $sql_pelanggaran .= " WHERE k.nama = '" . mysqli_real_escape_string($koneksi, $kelas_wali_filter) . "' OR ps.nama_kelas = '" . mysqli_real_escape_string($koneksi, $kelas_wali_filter) . "'";
+                        }
+                        
+                        $sql_pelanggaran .= " ORDER BY ps.id DESC";
+                        
+                        $data = mysqli_query($koneksi, $sql_pelanggaran);
+                        while($row = mysqli_fetch_assoc($data)): 
+                        ?>
                         <tr>
                             <td><?= $no++; ?></td>
                             <td><?= htmlspecialchars($row['tanggal']); ?></td>
@@ -174,8 +210,11 @@ if (isset($_GET['hapus'])) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.bootstrap5.min.js"></script>
+<!-- Tambahan JS Select2 -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function () { 
+    // Inisialisasi DataTable
     $('#tabelPelanggaran').DataTable({
         language: {
             paginate: { first: "Pertama", previous: "Sebelumnya", next: "Berikutnya", last: "Terakhir" },
@@ -187,6 +226,20 @@ $(document).ready(function () {
             zeroRecords: "Tidak ditemukan data yang sesuai"
         }
     }); 
+
+    // Inisialisasi Select2 pada dropdown Siswa
+    $('#selectSiswa').select2({
+        theme: 'bootstrap-5',
+        placeholder: '-- Pilih Siswa --',
+        allowClear: true
+    });
+
+    // Inisialisasi Select2 pada dropdown Pelanggaran
+    $('#selectPelanggaran').select2({
+        theme: 'bootstrap-5',
+        placeholder: '-- Pilih Pelanggaran --',
+        allowClear: true
+    });
 });
 </script>
 </body>

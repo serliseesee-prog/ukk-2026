@@ -18,11 +18,11 @@ if (isset($_POST['simpan'])) {
         if (!empty($id)) {
             // Edit data
             $query = "UPDATE t_kelas_siswa SET 
-                      siswa_id = '$siswa_id', 
-                      tahun_ajaran_id = '$tahun_ajaran_id', 
-                      kelas_id = '$kelas_id', 
-                      status_aktif = '$status_aktif' 
-                      WHERE id = '$id'";
+                     siswa_id = '$siswa_id', 
+                     tahun_ajaran_id = '$tahun_ajaran_id', 
+                     kelas_id = '$kelas_id', 
+                     status_aktif = '$status_aktif' 
+                     WHERE id = '$id'";
             mysqli_query($koneksi, $query);
         } else {
             // Tambah data baru
@@ -47,8 +47,8 @@ if (isset($_GET['hapus'])) {
 $edit_id = $_GET['edit'] ?? '';
 $edit = $edit_id ? mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT * FROM t_kelas_siswa WHERE id='$edit_id'")) : null;
 
-// AMBIL SEMUA DATA PENEMPATAN (Diurutkan dari ID terkecil ke terbesar agar input terakhir ada di bawah)
-$query_data = "SELECT ks.*, s.nama AS nama_siswa, s.nis, k.nama AS nama_kelas, ta.nama AS nama_tahun 
+// AMBIL SEMUA DATA PENEMPATAN
+$query_data = "SELECT ks.*, TRIM(s.nama) AS nama_siswa, TRIM(s.nis) AS nis, TRIM(k.nama) AS nama_kelas, TRIM(ta.nama) AS nama_tahun 
                FROM t_kelas_siswa ks
                LEFT JOIN t_siswa s ON ks.siswa_id = s.id
                LEFT JOIN t_kelas k ON ks.kelas_id = k.id
@@ -240,7 +240,7 @@ $(document).ready(function () {
         },
         pageLength: 10,
         lengthMenu: [5, 10, 25, 50, 100],
-        order: [[0, 'asc']], // Diurutkan berdasarkan kolom No secara Ascending (input terbaru di bawah)
+        order: [[0, 'asc']],
         columnDefs: [
             { targets: 0, orderable: true },
             { targets: 6, orderable: false, searchable: false }

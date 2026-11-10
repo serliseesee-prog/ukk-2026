@@ -1,4 +1,3 @@
-
 <?php
 require_once 'koneksi.php';
 
@@ -62,9 +61,9 @@ if (isset($_GET['edit'])) {
     }
 }
 
-// AMBIL DATA KATEGORI
+// AMBIL DATA KATEGORI (Diurutkan berdasarkan id ASC agar input terakhir/baru muncul di bawah)
 $data = mysqli_query($koneksi,
-    "SELECT * FROM t_pelanggaran_kategori ORDER BY nama ASC");
+    "SELECT * FROM t_pelanggaran_kategori ORDER BY id ASC");
 
 if (!$data) {
     die("Gagal mengambil data: " . e(mysqli_error($koneksi)));
@@ -188,10 +187,6 @@ if (!$data) {
         
         <li class="nav-item mb-1">
             <a href="about_me.php">About Me</a>
-
-            
-        
-
         </li>
 
     </ul>
@@ -207,17 +202,13 @@ if (!$data) {
 
     <h2>Kelola Kategori Pelanggaran</h2>
 
-    <div class="mb-3">
-      
-    </div>
+    <div class="mb-3"></div>
 
     <!-- FORM TAMBAH / EDIT -->
     <div class="card shadow-sm mb-4">
 
         <div class="card-header bg-primary text-white">
-
             <?= $edit['id'] ? 'Edit Data Kategori' : 'Tambah Data Kategori'; ?>
-
         </div>
 
         <div class="card-body">
@@ -227,55 +218,42 @@ if (!$data) {
                 <input type="hidden" name="id" value="<?= e($edit['id']); ?>">
 
                 <div class="mb-3">
-
                     <label class="form-label">Nama Kategori</label>
-
                     <input type="text"
                         name="nama"
                         class="form-control"
                         value="<?= e($edit['nama']); ?>"
                         required>
-
                 </div>
 
                 <div class="mb-3">
-
                     <label class="form-label">Deskripsi</label>
-
                     <textarea name="deskripsi"
                         class="form-control"
                         rows="3"><?= e($edit['deskripsi']); ?></textarea>
-
                 </div>
 
                 <div class="form-check mb-3">
-
                     <input class="form-check-input"
                         type="checkbox"
                         name="status_aktif"
                         id="status_aktif"
                         value="1"
                         <?= $edit['status_aktif'] == 1 ? 'checked' : ''; ?>>
-
                     <label class="form-check-label" for="status_aktif">
                         Status Aktif
                     </label>
-
                 </div>
 
                 <button type="submit" name="simpan" class="btn btn-primary">
-
                     <?= $edit['id'] ? 'Update Data' : 'Simpan'; ?>
-
                 </button>
 
                 <?php if ($edit['id']): ?>
-
                     <a href="kelola_kategori_pelanggaran.php"
                         class="btn btn-secondary">
                         Batal
                     </a>
-
                 <?php endif; ?>
 
             </form>
@@ -298,7 +276,6 @@ if (!$data) {
                     class="table table-bordered table-striped table-hover align-middle w-100">
 
                     <thead class="table-dark">
-
                         <tr>
                             <th>No</th>
                             <th>Nama Kategori</th>
@@ -306,47 +283,30 @@ if (!$data) {
                             <th>Status</th>
                             <th>Aksi</th>
                         </tr>
-
                     </thead>
 
                     <tbody>
-
                         <?php $no = 1; ?>
-
                         <?php while ($r = mysqli_fetch_assoc($data)): ?>
-
                             <tr>
-
                                 <td><?= $no++; ?></td>
-
                                 <td><?= e($r['nama']); ?></td>
-
                                 <td>
                                     <?= $r['deskripsi'] ? e($r['deskripsi']) : '-'; ?>
                                 </td>
-
                                 <td>
-
                                     <?php if ($r['status_aktif'] == 1): ?>
-
                                         <span class="badge bg-success">
                                             Aktif
                                         </span>
-
                                     <?php else: ?>
-
                                         <span class="badge bg-secondary">
                                             Tidak Aktif
                                         </span>
-
                                     <?php endif; ?>
-
                                 </td>
-
                                 <td>
-
                                     <div class="d-flex gap-1">
-
                                         <a href="kelola_kategori_pelanggaran.php?edit=<?= (int)$r['id']; ?>"
                                             class="btn btn-sm btn-warning">
                                             Edit
@@ -357,15 +317,10 @@ if (!$data) {
                                             onclick="return confirm('Yakin ingin menghapus kategori ini?')">
                                             Hapus
                                         </a>
-
                                     </div>
-
                                 </td>
-
                             </tr>
-
                         <?php endwhile; ?>
-
                     </tbody>
 
                 </table>
@@ -412,7 +367,8 @@ $(document).ready(function () {
 
         lengthMenu: [5, 10, 25, 50, 100],
 
-        order: [[1, 'asc']],
+        // Mengatur urutan berdasarkan kolom No (kolom ke-0) secara ascending
+        order: [[0, 'asc']],
 
         columnDefs: [
             {
@@ -422,7 +378,8 @@ $(document).ready(function () {
             }
         ],
 
-        stateSave: true
+        // Dimatikan agar urutan tidak tersimpan secara acak di cache browser
+        stateSave: false
 
     });
 
