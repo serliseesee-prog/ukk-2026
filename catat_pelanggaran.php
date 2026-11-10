@@ -11,19 +11,6 @@ $user_id = (int)$_SESSION['user_id'];
 $role = $_SESSION['role'] ?? 'user';
 $nama = $_SESSION['name'] ?? ($_SESSION['nama_user'] ?? ($_SESSION['nama'] ?? 'Pengguna'));
 
-// DETEKSI KELAS WALI KELAS YANG SEDANG LOGIN
-$kelas_wali_filter = null;
-if ($role === 'guru') {
-    // Cek apakah guru ini merupakan wali kelas aktif di database
-    $q_wk = mysqli_query($koneksi, "SELECT k.nama AS nama_kelas FROM t_wali_kelas wk JOIN t_guru g ON wk.guru_id = g.id JOIN t_kelas k ON wk.kelas_id = k.id WHERE g.user_id = $user_id AND wk.status_aktif = 1 LIMIT 1");
-    if ($wk_row = mysqli_fetch_assoc($q_wk)) {
-        $kelas_wali_filter = $wk_row['nama_kelas']; // Contoh: 'XII RPL 1'
-    } elseif (stripos($nama, 'Ari Sandriana') !== false) {
-        // Fallback khusus jika nama mendeteksi Ari Sandriana
-        $kelas_wali_filter = 'XII RPL 1';
-    }
-}
-
 if (isset($_POST['simpan'])) {
     $s_id = (int)$_POST['siswa_id'];
     $p_id = (int)$_POST['pelanggaran_id'];
@@ -138,7 +125,6 @@ if (isset($_GET['hapus'])) {
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Pelanggaran</label>
-                        <!-- Tambahkan id="selectPelanggaran" agar bisa diinisialisasi Select2 -->
                         <select name="pelanggaran_id" id="selectPelanggaran" class="form-select" required>
                             <option value="">-- Pilih Pelanggaran --</option>
                             <?php $q = mysqli_query($koneksi, "SELECT id, kode, nama, poin FROM t_pelanggaran ORDER BY kode ASC"); while($r = mysqli_fetch_assoc($q)): ?>
@@ -154,7 +140,7 @@ if (isset($_GET['hapus'])) {
     </div>
 
     <div class="card border-0 shadow-sm">
-        <div class="card-header bg-dark text-white">Data Pelanggaran Siswa <?= $kelas_wali_filter ? '('.$kelas_wali_filter.')' : '' ?></div>
+        <div class="card-header bg-dark text-white">Semua Data Pelanggaran Siswa</div>
         <div class="card-body">
             <div class="table-responsive">
                 <table id="tabelPelanggaran" class="table table-bordered table-striped align-middle w-100">
@@ -172,19 +158,15 @@ if (isset($_GET['hapus'])) {
                     </thead>
                     <tbody>
                         <?php 
-                        $no=1; 
+                        $no = 1; 
                         
+                        // Query menampilkan seluruh data pelanggaran dari semua kelas tanpa filter
                         $sql_pelanggaran = "SELECT ps.*, s.nama AS s_nama, k.nama AS k_nama, p.nama AS p_nama 
                                             FROM t_pelanggaran_siswa ps 
                                             LEFT JOIN t_siswa s ON ps.siswa_id = s.id 
                                             LEFT JOIN t_kelas k ON ps.kelas_id = k.id 
-                                            LEFT JOIN t_pelanggaran p ON ps.pelanggaran_id = p.id";
-                        
-                        if ($role === 'guru' && !empty($kelas_wali_filter)) {
-                            $sql_pelanggaran .= " WHERE k.nama = '" . mysqli_real_escape_string($koneksi, $kelas_wali_filter) . "' OR ps.nama_kelas = '" . mysqli_real_escape_string($koneksi, $kelas_wali_filter) . "'";
-                        }
-                        
-                        $sql_pelanggaran .= " ORDER BY ps.id DESC";
+                                            LEFT JOIN t_pelanggaran p ON ps.pelanggaran_id = p.id 
+                                            ORDER BY ps.id DESC";
                         
                         $data = mysqli_query($koneksi, $sql_pelanggaran);
                         while($row = mysqli_fetch_assoc($data)): 
@@ -214,7 +196,6 @@ if (isset($_GET['hapus'])) {
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function () { 
-    // Inisialisasi DataTable
     $('#tabelPelanggaran').DataTable({
         language: {
             paginate: { first: "Pertama", previous: "Sebelumnya", next: "Berikutnya", last: "Terakhir" },
@@ -227,14 +208,12 @@ $(document).ready(function () {
         }
     }); 
 
-    // Inisialisasi Select2 pada dropdown Siswa
     $('#selectSiswa').select2({
         theme: 'bootstrap-5',
         placeholder: '-- Pilih Siswa --',
         allowClear: true
     });
 
-    // Inisialisasi Select2 pada dropdown Pelanggaran
     $('#selectPelanggaran').select2({
         theme: 'bootstrap-5',
         placeholder: '-- Pilih Pelanggaran --',

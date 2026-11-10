@@ -11,73 +11,97 @@ $user_id = (int)$_SESSION['user_id'];
 $role = $_SESSION['role'] ?? 'user';
 $nama = $_SESSION['name'] ?? ($_SESSION['nama_user'] ?? ($_SESSION['nama'] ?? 'Pengguna'));
 
-// DETEKSI KELAS WALI KELAS YANG SEDANG LOGIN
-$kelas_wali_filter = null;
-if ($role === 'guru') {
-    $q_wk = mysqli_query($koneksi, "SELECT k.nama AS nama_kelas FROM t_wali_kelas wk JOIN t_guru g ON wk.guru_id = g.id JOIN t_kelas k ON wk.kelas_id = k.id WHERE g.user_id = $user_id AND wk.status_aktif = 1 LIMIT 1");
-    if ($wk_row = mysqli_fetch_assoc($q_wk)) {
-        $kelas_wali_filter = $wk_row['nama_kelas']; // Contoh: 'XII RPL 1'
-    } elseif (stripos($nama, 'Ari Sandriana') !== false) {
-        $kelas_wali_filter = 'XII RPL 1';
+// Proses Update Status Langsung dari Tabel
+if (isset($_POST['update_status'])) {
+    $id_pelanggaran_siswa = (int)$_POST['id_pelanggaran_siswa'];
+    $status_baru = $_POST['status_baru'];
+    
+    $allowed_status = ['Pending', 'Proses', 'Selesai'];
+    if (in_array($status_baru, $allowed_status)) {
+        $stmt_up = mysqli_prepare($koneksi, "UPDATE t_pelanggaran_siswa SET status = ? WHERE id = ?");
+        mysqli_stmt_bind_param($stmt_up, "si", $status_baru, $id_pelanggaran_siswa);
+        mysqli_stmt_execute($stmt_up);
     }
+    header("Location: tindakan.php"); 
+    exit();
 }
 
-// Proses Update Status
-if (isset($_POST['update_status'])) {
-    $id = (int) $_POST['id'];
-    $status_baru = mysqli_real_escape_string($koneksi, $_POST['status']);
+// Proses Simpan Data Pelanggaran Baru (Status otomatis 'Pending')
+if (isset($_POST['simpan'])) {
+    $s_id = (int)$_POST['siswa_id'];
+    $p_id = (int)$_POST['pelanggaran_id'];
+    $tgl  = $_POST['tanggal'];
+    $status = 'Pending'; // Status otomatis Pending
+
+    $ta_query = mysqli_query($koneksi, "SELECT id FROM t_tahun_ajaran WHERE status_aktif = 1 LIMIT 1");
+    $ta = ($ta_row = mysqli_fetch_assoc($ta_query)) ? $ta_row['id'] : 1;
+
+    $ks_query = mysqli_query($koneksi, "SELECT kelas_id FROM t_kelas_siswa WHERE siswa_id = $s_id AND status_aktif = 1 LIMIT 1");
+    $k_id = ($ks_row = mysqli_fetch_assoc($ks_query)) ? $ks_row['kelas_id'] : 1;
+
+    $g_query = mysqli_query($koneksi, "SELECT id, nama FROM t_guru WHERE user_id = $user_id LIMIT 1");
+    if ($g_row = mysqli_fetch_assoc($g_query)) {
+        $g_id = $g_row['id'];
+        $g_nama = $g_row['nama'];
+    } else {
+        $fallback_guru = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id, nama FROM t_guru LIMIT 1"));
+        $g_id = $fallback_guru['id'] ?? 1;
+        $g_nama = $fallback_guru['nama'] ?? 'Administrator';
+    }
+
+    $s_row = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT nama FROM t_siswa WHERE id = $s_id"));
+    $s_nama = $s_row['nama'] ?? '';
+
+    $k_row = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT nama FROM t_kelas WHERE id = $k_id"));
+    $k_nama = $k_row['nama'] ?? '';
+
+    $p_row = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT nama, poin, pelanggaran_kategori_id FROM t_pelanggaran WHERE id = $p_id"));
+    $p_nama = $p_row['nama'] ?? '';
+    $p_poin = $p_row['poin'] ?? 0;
+    $p_kat  = $p_row['pelanggaran_kategori_id'] ?? 1;
+
+    if ($p_poin <= 10) {
+        $tindakan = 'Peringatan Lisan';
+    } elseif ($p_poin <= 20) {
+        $tindakan = 'Panggilan Orang Tua / SP 1';
+    } elseif ($p_poin <= 50) {
+        $tindakan = 'Skorsing & Pembinaan Khusus';
+    } else {
+        $tindakan = 'Dikembalikan kepada Orang Tua';
+    }
+
+    $keterangan = 'Pencatatan pelanggaran otomatis';
+
+    $stmt = mysqli_prepare($koneksi, "INSERT INTO t_pelanggaran_siswa (tahun_ajaran_id, siswa_id, nama_siswa, kelas_id, nama_kelas, pelanggaran_id, nama_pelanggaran, pelanggaran_kategori_id, guru_id, nama_guru, tanggal, keterangan, poin, tindakan, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
     
-    $stmt = mysqli_prepare($koneksi, "UPDATE t_pelanggaran_siswa SET status = ? WHERE id = ?");
-    mysqli_stmt_bind_param($stmt, "si", $status_baru, $id);
+    mysqli_stmt_bind_param($stmt, "iisisisiisssiss", $ta, $s_id, $s_nama, $k_id, $k_nama, $p_id, $p_nama, $p_kat, $g_id, $g_nama, $tgl, $keterangan, $p_poin, $tindakan, $status);
     mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
-    
-    header("Location: tindakan.php?msg=update");
-    exit();
+    header("Location: tindakan.php"); exit();
 }
 
 // Proses Hapus Data
 if (isset($_GET['hapus'])) {
-    $id = (int) $_GET['hapus'];
-    mysqli_query($koneksi, "DELETE FROM t_pelanggaran_siswa WHERE id = $id");
-    header("Location: tindakan.php?msg=hapus");
-    exit();
+    mysqli_query($koneksi, "DELETE FROM t_pelanggaran_siswa WHERE id = " . (int)$_GET['hapus']);
+    header("Location: tindakan.php"); exit();
 }
-
-// KUNCI UTAMA: Filter status != 'Selesai' dan filter kelas jika akun yang login adalah wali kelas
-$sql = "SELECT ps.*, s.nama AS nama_siswa, k.nama AS nama_kelas, p.nama AS nama_pelanggaran, g.nama AS nama_guru 
-        FROM t_pelanggaran_siswa ps 
-        LEFT JOIN t_siswa s ON ps.siswa_id = s.id 
-        LEFT JOIN t_kelas k ON ps.kelas_id = k.id 
-        LEFT JOIN t_pelanggaran p ON ps.pelanggaran_id = p.id 
-        LEFT JOIN t_guru g ON ps.guru_id = g.id 
-        WHERE ps.status != 'Selesai'";
-
-if ($role === 'guru' && !empty($kelas_wali_filter)) {
-    $sql .= " AND (k.nama = '" . mysqli_real_escape_string($koneksi, $kelas_wali_filter) . "' OR ps.nama_kelas = '" . mysqli_real_escape_string($koneksi, $kelas_wali_filter) . "')";
-}
-
-$sql .= " ORDER BY ps.tanggal DESC, ps.id DESC";
-$data = mysqli_query($koneksi, $sql);
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Data Tindakan Pelanggaran</title>
+    <meta charset="UTF-8"><title>Data Tindakan Pelanggaran</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/2.3.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
     <style>
         body { background: #f8f9fa; }
-        .sidebar { width: 250px; height: 100vh; position: fixed; top: 0; left: 0; background: #212529; color: #fff; padding-top: 15px; overflow-y: auto; }
+        .sidebar { width: 250px; height: 100vh; position: fixed; top: 0; left: 0; background: #212529; color: #fff; padding-top: 15px; }
         .sidebar a { display: block; padding: 10px 20px; color: #adb5bd; text-decoration: none; }
         .sidebar a:hover, .sidebar a.active { background: #0d6efd; color: #fff; }
         .main { margin-left: 250px; padding: 30px; }
     </style>
 </head>
 <body>
-
 <div class="sidebar d-flex flex-column p-3">
     <h4 class="text-white mb-4">Pelanggaran Siswa</h4>
     <ul class="nav nav-pills flex-column mb-auto">
@@ -94,22 +118,48 @@ $data = mysqli_query($koneksi, $sql);
 
 <div class="main">
     <h3 class="fw-bold mb-3">Data Tindakan Pelanggaran</h3>
-    
-    <?php if (isset($_GET['msg']) && $_GET['msg'] === 'hapus'): ?>
-        <div class="alert alert-success alert-dismissible fade show">
-            Data berhasil dihapus. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">Form Tambah Catatan Pelanggaran</div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Tanggal</label>
+                        <input type="date" name="tanggal" class="form-control" value="<?= date('Y-m-d'); ?>" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Siswa</label>
+                        <select name="siswa_id" id="selectSiswa" class="form-select" required>
+                            <option value="">-- Pilih Siswa --</option>
+                            <?php 
+                            $q = mysqli_query($koneksi, "SELECT id, nis, nama FROM t_siswa ORDER BY nama ASC"); 
+                            while($r = mysqli_fetch_assoc($q)): 
+                            ?>
+                                <option value="<?= $r['id'] ?>"><?= $r['nis'].' - '.$r['nama'] ?></option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Pelanggaran</label>
+                        <select name="pelanggaran_id" id="selectPelanggaran" class="form-select" required>
+                            <option value="">-- Pilih Pelanggaran --</option>
+                            <?php $q = mysqli_query($koneksi, "SELECT id, kode, nama, poin FROM t_pelanggaran ORDER BY kode ASC"); while($r = mysqli_fetch_assoc($q)): ?>
+                                <option value="<?= $r['id'] ?>"><?= $r['kode'].' - '.$r['nama'].' ('.$r['poin'].' Poin)' ?></option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" name="simpan" class="btn btn-primary">Simpan</button>
+                <button type="reset" class="btn btn-secondary">Reset</button>
+            </form>
         </div>
-    <?php elseif (isset($_GET['msg']) && $_GET['msg'] === 'update'): ?>
-        <div class="alert alert-success alert-dismissible fade show">
-            Status tindakan berhasil diperbarui. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
+    </div>
 
     <div class="card border-0 shadow-sm">
-        <div class="card-header bg-dark text-white">Daftar Tindakan Pelanggaran Siswa <?= $kelas_wali_filter ? '('.$kelas_wali_filter.')' : '' ?></div>
+        <div class="card-header bg-dark text-white">Semua Data Pelanggaran Siswa</div>
         <div class="card-body">
             <div class="table-responsive">
-                <table id="tabelTindakan" class="table table-bordered table-striped align-middle w-100">
+                <table id="tabelPelanggaran" class="table table-bordered table-striped align-middle w-100">
                     <thead class="table-dark">
                         <tr>
                             <th>No</th>
@@ -118,38 +168,49 @@ $data = mysqli_query($koneksi, $sql);
                             <th>Kelas</th>
                             <th>Pelanggaran</th>
                             <th>Poin</th>
-                            <th>Guru</th>
+                            <th>Guru Pencatat</th>
                             <th>Tindakan</th>
                             <th>Status</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php $no = 1; while ($row = mysqli_fetch_assoc($data)): ?>
+                        <?php 
+                        $no = 1; 
+                        
+                        $sql_pelanggaran = "SELECT ps.*, s.nama AS s_nama, k.nama AS k_nama, p.nama AS p_nama 
+                                            FROM t_pelanggaran_siswa ps 
+                                            LEFT JOIN t_siswa s ON ps.siswa_id = s.id 
+                                            LEFT JOIN t_kelas k ON ps.kelas_id = k.id 
+                                            LEFT JOIN t_pelanggaran p ON ps.pelanggaran_id = p.id 
+                                            WHERE ps.status != 'Selesai'
+                                            ORDER BY ps.id DESC";
+                        
+                        $data = mysqli_query($koneksi, $sql_pelanggaran);
+                        while($row = mysqli_fetch_assoc($data)): 
+                            $status_val = $row['status'] ?? 'Pending';
+                        ?>
                         <tr>
                             <td><?= $no++; ?></td>
-                            <td><?= htmlspecialchars($row['tanggal'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['nama_siswa'] ?? '-'); ?></td>
-                            <td><?= htmlspecialchars($row['nama_kelas'] ?? '-'); ?></td>
-                            <td><?= htmlspecialchars($row['nama_pelanggaran'] ?? '-'); ?></td>
-                            <td><span class="badge bg-danger"><?= (int)($row['poin'] ?? 0); ?></span></td>
+                            <td><?= htmlspecialchars($row['tanggal']); ?></td>
+                            <td><?= htmlspecialchars($row['s_nama'] ?? $row['nama_siswa'] ?? '-'); ?></td>
+                            <td><?= htmlspecialchars($row['k_nama'] ?? $row['nama_kelas'] ?? '-'); ?></td>
+                            <td><?= htmlspecialchars($row['p_nama'] ?? $row['nama_pelanggaran'] ?? '-'); ?></td>
+                            <td><span class="badge bg-danger"><?= (int)$row['poin']; ?></span></td>
                             <td><?= htmlspecialchars($row['nama_guru'] ?? '-'); ?></td>
                             <td><?= htmlspecialchars($row['tindakan'] ?? '-'); ?></td>
                             <td>
-                                <!-- Form untuk mengubah status secara langsung -->
-                                <form method="POST" class="d-flex gap-1 align-items-center">
-                                    <input type="hidden" name="id" value="<?= $row['id']; ?>">
-                                    <select name="status" class="form-select form-select-sm" style="width: 130px;">
-                                        <option value="Pending" <?= ($row['status'] === 'Pending') ? 'selected' : ''; ?>>Pending</option>
-                                        <option value="Proses" <?= ($row['status'] === 'Proses') ? 'selected' : ''; ?>>Proses</option>
-                                        <option value="Selesai" <?= ($row['status'] === 'Selesai') ? 'selected' : ''; ?>>Selesai</option>
+                                <form method="POST" class="d-flex gap-1 align-items-center mb-0">
+                                    <input type="hidden" name="id_pelanggaran_siswa" value="<?= $row['id']; ?>">
+                                    <select name="status_baru" class="form-select form-select-sm" style="min-width: 110px;">
+                                        <option value="Pending" <?= ($status_val == 'Pending') ? 'selected' : ''; ?>>Pending</option>
+                                        <option value="Proses" <?= ($status_val == 'Proses') ? 'selected' : ''; ?>>Proses</option>
+                                        <option value="Selesai" <?= ($status_val == 'Selesai') ? 'selected' : ''; ?>>Selesai</option>
                                     </select>
-                                    <button type="submit" name="update_status" class="btn btn-sm btn-primary">Simpan</button>
+                                    <button type="submit" name="update_status" class="btn btn-primary btn-sm">Simpan</button>
                                 </form>
                             </td>
-                            <td>
-                                <a href="tindakan.php?hapus=<?= (int)$row['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Hapus data?')">Hapus</a>
-                            </td>
+                            <td><a href="tindakan.php?hapus=<?= (int)$row['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Hapus data?')">Hapus</a></td>
                         </tr>
                         <?php endwhile; ?>
                     </tbody>
@@ -158,21 +219,35 @@ $data = mysqli_query($koneksi, $sql);
         </div>
     </div>
 </div>
-
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-$(document).ready(function () {
-    $('#tabelTindakan').DataTable({
+$(document).ready(function () { 
+    $('#tabelPelanggaran').DataTable({
         language: {
+            paginate: { first: "Pertama", previous: "Sebelumnya", next: "Berikutnya", last: "Terakhir" },
+            info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ entri",
+            infoEmpty: "Menampilkan 0 sampai 0 dari 0 entri",
+            infoFiltered: "(disaring dari _MAX_ total entri)",
+            lengthMenu: "Tampilkan _MENU_ entri",
             search: "Cari:",
-            lengthMenu: "Tampilkan _MENU_ data",
-            info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
-            zeroRecords: "Belum ada data tindakan",
-            paginate: { first: "Pertama", last: "Terakhir", next: "Berikutnya", previous: "Sebelumnya" }
+            zeroRecords: "Tidak ditemukan data yang sesuai"
         }
+    }); 
+
+    $('#selectSiswa').select2({
+        theme: 'bootstrap-5',
+        placeholder: '-- Pilih Siswa --',
+        allowClear: true
+    });
+
+    $('#selectPelanggaran').select2({
+        theme: 'bootstrap-5',
+        placeholder: '-- Pilih Pelanggaran --',
+        allowClear: true
     });
 });
 </script>

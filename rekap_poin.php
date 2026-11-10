@@ -1,51 +1,53 @@
 <?php
 require_once 'koneksi.php';
-if (session_status() === PHP_SESSION_NONE) session_start();
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
 $conn = $conn ?? ($koneksi ?? null);
-if (!($conn instanceof mysqli)) die("Koneksi database tidak tersedia.");
+if (!($conn instanceof mysqli)) {
+    die("Koneksi database tidak tersedia.");
+}
 
 $user_id = $_SESSION['user_id'] ?? 0;
 $role = $_SESSION['role'] ?? '';
 $is_wk = $_SESSION['is_wali_kelas'] ?? false;
 $nama = $_SESSION['name'] ?? ($_SESSION['nama_user'] ?? ($_SESSION['nama'] ?? 'Pengguna'));
 
-// DETEKSI KELAS WALI KELAS YANG SEDANG LOGIN
+// DETEKSI KELAS WALI KELAS (Opsional hanya untuk teks keterangan di judul)
 $kelas_wali_filter = null;
 if ($role === 'guru') {
     $q_wk = mysqli_query($conn, "SELECT k.nama AS nama_kelas FROM t_wali_kelas wk JOIN t_guru g ON wk.guru_id = g.id JOIN t_kelas k ON wk.kelas_id = k.id WHERE g.user_id = $user_id AND wk.status_aktif = 1 LIMIT 1");
     if ($wk_row = mysqli_fetch_assoc($q_wk)) {
-        $kelas_wali_filter = $wk_row['nama_kelas']; // Contoh: 'XII RPL 1'
+        $kelas_wali_filter = $wk_row['nama_kelas']; 
     } elseif (stripos($nama, 'Ari Sandriana') !== false) {
         $kelas_wali_filter = 'XII RPL 1';
     }
 }
 
-// QUERY REKAP POIN DENGAN FILTER KELAS
+// QUERY REKAP POIN: Menampilkan SEMUA KELAS tanpa filter pembatasan kelas
 $sql = "SELECT s.id AS siswa_id, s.nis, s.nama AS nama_siswa, k.nama AS nama_kelas,
         COUNT(ps.id) AS jumlah_pelanggaran, COALESCE(SUM(ps.poin), 0) AS total_poin
         FROM t_siswa AS s
         LEFT JOIN t_kelas_siswa AS ks ON ks.siswa_id = s.id AND ks.status_aktif = 1
         LEFT JOIN t_kelas AS k ON k.id = ks.kelas_id
-        LEFT JOIN t_pelanggaran_siswa AS ps ON ps.siswa_id = s.id";
-
-// Tambahkan klausa WHERE jika akun yang login adalah wali kelas
-if ($role === 'guru' && !empty($kelas_wali_filter)) {
-    $sql .= " WHERE k.nama = '" . mysqli_real_escape_string($conn, $kelas_wali_filter) . "'";
-}
-
-$sql .= " GROUP BY s.id, s.nis, s.nama, k.nama
-          HAVING jumlah_pelanggaran > 0
-          ORDER BY total_poin DESC, s.nama ASC";
+        LEFT JOIN t_pelanggaran_siswa AS ps ON ps.siswa_id = s.id
+        GROUP BY s.id, s.nis, s.nama, k.nama
+        HAVING jumlah_pelanggaran > 0
+        ORDER BY total_poin DESC, s.nama ASC";
 
 $result = mysqli_query($conn, $sql);
-if (!$result) die("Gagal mengambil data: " . mysqli_error($conn));
-function e($v) { return htmlspecialchars((string)($v ?? '-'), ENT_QUOTES, 'UTF-8'); }
+if (!$result) {
+    die("Gagal mengambil data: " . mysqli_error($conn));
+}
+
+function e($v) { 
+    return htmlspecialchars((string)($v ?? '-'), ENT_QUOTES, 'UTF-8'); 
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rekap Poin Siswa</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
@@ -71,7 +73,6 @@ function e($v) { return htmlspecialchars((string)($v ?? '-'), ENT_QUOTES, 'UTF-8
         <li class="nav-item mb-1"><a href="riwayat.php">Riwayat</a></li>
         <li class="nav-item mb-1"><a href="rekap_poin.php" class="active">Rekap Poin</a></li>
         
-        <!-- Menu Laporan: Hanya tampil jika yang login adalah Admin atau Wali Kelas -->
         <?php if ($role === 'admin' || $is_wk === true || $role === 'guru'): ?>
             <li class="nav-item mb-1">
                 <a href="laporan.php" class="<?= basename($_SERVER['PHP_SELF']) == 'laporan.php' ? 'active' : ''; ?>">Laporan</a>
@@ -87,17 +88,21 @@ function e($v) { return htmlspecialchars((string)($v ?? '-'), ENT_QUOTES, 'UTF-8
 <div class="main">
     <div class="mb-4">
         <h2 class="fw-bold mb-1">Rekap Poin Siswa</h2>
-        <p class="text-muted">Ringkasan poin dan jumlah pelanggaran setiap siswa <?= $kelas_wali_filter ? '('.$kelas_wali_filter.')' : '' ?>.</p>
+        <p class="text-muted">Ringkasan poin dan jumlah pelanggaran seluruh siswa dari berbagai kelas.</p>
     </div>
 
     <div class="table-container">
-        <h5 class="fw-bold mb-3">Data Rekap Poin Siswa</h5>
+        <h5 class="fw-bold mb-3">Semua Data Rekap Poin Siswa</h5>
         <div class="table-responsive">
             <table id="tabelRekap" class="table table-bordered table-striped table-hover w-100">
                 <thead class="table-dark">
                     <tr>
-                        <th style="width: 60px;">No</th><th>NIS</th><th>Nama Siswa</th>
-                        <th>Kelas</th><th>Jumlah Pelanggaran</th><th>Total Poin</th>
+                        <th style="width: 60px;">No</th>
+                        <th>NIS</th>
+                        <th>Nama Siswa</th>
+                        <th>Kelas</th>
+                        <th>Jumlah Pelanggaran</th>
+                        <th>Total Poin</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -128,9 +133,12 @@ $(document).ready(function () {
         order: [[5, 'desc']],
         columnDefs: [{ targets: 0, orderable: false, searchable: false }],
         language: {
-            search: 'Cari:', searchPlaceholder: 'Cari NIS atau nama siswa...',
-            lengthMenu: 'Tampilkan _MENU_ data', info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
-            zeroRecords: 'Data tidak ditemukan', paginate: { first: 'Pertama', last: 'Terakhir', next: 'Berikutnya', previous: 'Sebelumnya' }
+            search: 'Cari:', 
+            searchPlaceholder: 'Cari NIS atau nama siswa...',
+            lengthMenu: 'Tampilkan _MENU_ data', 
+            info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+            zeroRecords: 'Data tidak ditemukan', 
+            paginate: { first: 'Pertama', last: 'Terakhir', next: 'Berikutnya', previous: 'Sebelumnya' }
         }
     });
 
