@@ -6,17 +6,24 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
-// 1. PROSES SIMPAN (TAMBAH / EDIT PENEMPATAN)
+// AMBIL TAHUN AJARAN YANG AKTIF OTOMATIS
+$query_ta_aktif = mysqli_query($koneksi, "SELECT * FROM t_tahun_ajaran WHERE status_aktif = 1 LIMIT 1");
+$tahun_aktif = mysqli_fetch_assoc($query_ta_aktif);
+$tahun_ajaran_id_aktif = $tahun_aktif['id'] ?? '';
+$nama_tahun_aktif = $tahun_aktif['nama'] ?? 'Tidak ada Tahun Ajaran Aktif';
+
+// 1. PROSES SIMPAN (TAMBAH / EDIT PENEMPATAN DENGAN VALIDASI DUPLIKASI)
 if (isset($_POST['simpan'])) {
     $id = $_POST['id'] ?? '';
     $siswa_id = (int)($_POST['siswa_id'] ?? 0);
-    $tahun_ajaran_id = (int)($_POST['tahun_ajaran_id'] ?? 0);
+    // Tahun ajaran langsung ambil dari yang aktif saat ini secara otomatis
+    $tahun_ajaran_id = (int)($_POST['tahun_ajaran_id'] ?? $tahun_ajaran_id_aktif);
     $kelas_id = (int)($_POST['kelas_id'] ?? 0);
-    $status_aktif = (isset($_POST['status_aktif']) && $_POST['status_aktif'] == 'Aktif') ? 1 : 0;
+    $status_aktif = 1; // Default aktif untuk penempatan baru/edit
 
     if ($siswa_id && $tahun_ajaran_id && $kelas_id) {
         if (!empty($id)) {
-            // Edit data
+            // Mode Edit: Update data berdasarkan ID penempatan
             $query = "UPDATE t_kelas_siswa SET 
                      siswa_id = '$siswa_id', 
                      tahun_ajaran_id = '$tahun_ajaran_id', 
@@ -24,22 +31,34 @@ if (isset($_POST['simpan'])) {
                      status_aktif = '$status_aktif' 
                      WHERE id = '$id'";
             mysqli_query($koneksi, $query);
+            header("Location: penempatan_siswa.php?pesan=sukses_edit");
+            exit();
         } else {
-            // Tambah data baru
-            $query = "INSERT INTO t_kelas_siswa (siswa_id, tahun_ajaran_id, kelas_id, status_aktif) 
-                      VALUES ('$siswa_id', '$tahun_ajaran_id', '$kelas_id', '$status_aktif')";
-            mysqli_query($koneksi, $query);
+            // Mode Tambah: Cek apakah siswa sudah punya penempatan di Tahun Ajaran Aktif yang sama
+            $cek_sql = "SELECT id FROM t_kelas_siswa WHERE siswa_id = '$siswa_id' AND tahun_ajaran_id = '$tahun_ajaran_id'";
+            $result_cek = mysqli_query($koneksi, $cek_sql);
+
+            if (mysqli_num_rows($result_cek) > 0) {
+                // JIKA SUDAH ADA: Tolak dan arahkan kembali dengan pesan error
+                header("Location: penempatan_siswa.php?pesan=duplikat");
+                exit();
+            } else {
+                // JIKA BELUM ADA: Lakukan Insert data baru
+                $query = "INSERT INTO t_kelas_siswa (siswa_id, tahun_ajaran_id, kelas_id, status_aktif) 
+                          VALUES ('$siswa_id', '$tahun_ajaran_id', '$kelas_id', '$status_aktif')";
+                mysqli_query($koneksi, $query);
+                header("Location: penempatan_siswa.php?pesan=sukses_tambah");
+                exit();
+            }
         }
     }
-    header("Location: penempatan_siswa.php");
-    exit();
 }
 
 // 2. PROSES HAPUS
 if (isset($_GET['hapus'])) {
     $id_penempatan = (int)$_GET['hapus'];
     mysqli_query($koneksi, "DELETE FROM t_kelas_siswa WHERE id='$id_penempatan'");
-    header("Location: penempatan_siswa.php");
+    header("Location: penempatan_siswa.php?pesan=sukses_hapus");
     exit();
 }
 
@@ -60,10 +79,9 @@ if (!$data_penempatan) {
     die("Gagal mengambil data penempatan siswa: " . htmlspecialchars(mysqli_error($koneksi)));
 }
 
-// Ambil data pendukung untuk dropdown
+// Ambil data pendukung untuk dropdown siswa dan kelas
 $data_siswa = mysqli_query($koneksi, "SELECT * FROM t_siswa WHERE status_aktif = 1 ORDER BY nama ASC");
 $data_kelas = mysqli_query($koneksi, "SELECT * FROM t_kelas WHERE status_aktif = 1 ORDER BY nama ASC");
-$data_tahun = mysqli_query($koneksi, "SELECT * FROM t_tahun_ajaran ORDER BY nama DESC");
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -114,6 +132,31 @@ $data_tahun = mysqli_query($koneksi, "SELECT * FROM t_tahun_ajaran ORDER BY nama
     <h2>Penempatan Siswa</h2>
     <div class="mb-3"></div>
 
+    <!-- NOTIFIKASI / ALERT -->
+    <?php if (isset($_GET['pesan'])): ?>
+        <?php if ($_GET['pesan'] == 'duplikat'): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <strong>Gagal!</strong> Siswa tersebut sudah memiliki penempatan kelas pada Tahun Ajaran Aktif ini. Jika ingin memindahkan kelasnya, silakan gunakan tombol <strong>Edit</strong> pada tabel di bawah.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php elseif ($_GET['pesan'] == 'sukses_tambah'): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <strong>Berhasil!</strong> Penempatan siswa baru berhasil ditambahkan.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php elseif ($_GET['pesan'] == 'sukses_edit'): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <strong>Berhasil!</strong> Data penempatan/kelas siswa berhasil diperbarui.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php elseif ($_GET['pesan'] == 'sukses_hapus'): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <strong>Berhasil!</strong> Data penempatan siswa berhasil dihapus.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
+    <?php endif; ?>
+
     <!-- FORM TAMBAH / EDIT PENEMPATAN -->
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-primary text-white">
@@ -127,7 +170,10 @@ $data_tahun = mysqli_query($koneksi, "SELECT * FROM t_tahun_ajaran ORDER BY nama
                     <label class="form-label">Siswa</label>
                     <select name="siswa_id" class="form-control" required>
                         <option value="">Pilih Siswa</option>
-                        <?php while ($s = mysqli_fetch_assoc($data_siswa)): ?>
+                        <?php 
+                        mysqli_data_seek($data_siswa, 0);
+                        while ($s = mysqli_fetch_assoc($data_siswa)): 
+                        ?>
                             <option value="<?= $s['id']; ?>" <?= (($edit['siswa_id'] ?? '') == $s['id']) ? 'selected' : ''; ?>>
                                 <?= htmlspecialchars($s['nis'] . ' - ' . $s['nama']); ?>
                             </option>
@@ -137,21 +183,21 @@ $data_tahun = mysqli_query($koneksi, "SELECT * FROM t_tahun_ajaran ORDER BY nama
 
                 <div class="mb-3">
                     <label class="form-label">Tahun Ajaran</label>
-                    <select name="tahun_ajaran_id" class="form-control" required>
-                        <option value="">Pilih Tahun Ajaran</option>
-                        <?php while ($ta = mysqli_fetch_assoc($data_tahun)): ?>
-                            <option value="<?= $ta['id']; ?>" <?= (($edit['tahun_ajaran_id'] ?? '') == $ta['id']) ? 'selected' : ''; ?>>
-                                <?= htmlspecialchars($ta['nama']); ?>
-                            </option>
-                        <?php endwhile; ?>
-                    </select>
+                    <!-- Input tersembunyi untuk mengirimkan ID tahun ajaran aktif -->
+                    <input type="hidden" name="tahun_ajaran_id" value="<?= $edit ? $edit['tahun_ajaran_id'] : $tahun_ajaran_id_aktif; ?>">
+                    <!-- Tampilan teks statis/disabled agar otomatis dan tidak bisa diganti-ganti manual -->
+                    <input type="text" class="form-control bg-light" value="<?= htmlspecialchars($nama_tahun_aktif); ?>" readonly>
+                   
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Kelas</label>
                     <select name="kelas_id" class="form-control" required>
                         <option value="">Pilih Kelas</option>
-                        <?php while ($k = mysqli_fetch_assoc($data_kelas)): ?>
+                        <?php 
+                        mysqli_data_seek($data_kelas, 0);
+                        while ($k = mysqli_fetch_assoc($data_kelas)): 
+                        ?>
                             <option value="<?= $k['id']; ?>" <?= (($edit['kelas_id'] ?? '') == $k['id']) ? 'selected' : ''; ?>>
                                 <?= htmlspecialchars($k['nama']); ?>
                             </option>

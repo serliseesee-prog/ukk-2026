@@ -1,5 +1,6 @@
 <?php
 require_once 'koneksi.php';
+if (session_status() === PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit(); }
 
 $role = isset($_SESSION['role']) ? $_SESSION['role'] : '';
@@ -12,12 +13,35 @@ if ($role === 'guru' && !$is_wali_kelas) {
     exit();
 }
 
-$where_clause = "";
+$where_arr = [];
+
+// Filter hak akses wali kelas / guru berdasarkan relasi t_wali_kelas yang aktif
 if ($role !== 'admin') {
-    $q_wk = mysqli_query($koneksi, "SELECT k.nama FROM t_wali_kelas tw JOIN t_kelas k ON tw.kelas_id = k.id JOIN t_guru g ON tw.guru_id = g.id WHERE (g.user_id = '$user_id' OR g.nama LIKE '%$nama_user%') AND tw.status_aktif = 1 LIMIT 1");
+    $user_id_esc = mysqli_real_escape_string($koneksi, $user_id);
+    $nama_user_esc = mysqli_real_escape_string($koneksi, $nama_user);
+    
+    // Ambil nama kelas berdasarkan user_id login atau pencocokan nama guru
+    $q_wk = mysqli_query($koneksi, "SELECT k.nama FROM t_wali_kelas tw JOIN t_kelas k ON tw.kelas_id = k.id JOIN t_guru g ON tw.guru_id = g.id WHERE (g.user_id = '$user_id_esc' OR g.nama = '$nama_user_esc') AND tw.status_aktif = 1 LIMIT 1");
     $data_wk = mysqli_fetch_assoc($q_wk);
     $kelas = isset($data_wk['nama']) ? $data_wk['nama'] : '';
-    $where_clause = "WHERE nama_kelas = '$kelas'";
+    
+    // Jika wali kelas tidak ditemukan kelasnya, set filter kosong agar tidak menampilkan data yang salah
+    $where_arr[] = "nama_kelas = '" . mysqli_real_escape_string($koneksi, $kelas) . "'";
+}
+
+// Tangkap nilai satu filter tanggal
+$filter_tanggal = isset($_GET['tanggal']) ? $_GET['tanggal'] : '';
+
+if (!empty($filter_tanggal)) {
+    $filter_tanggal_esc = mysqli_real_escape_string($koneksi, $filter_tanggal);
+    // Filter berdasarkan tanggal spesifik
+    $where_arr[] = "DATE(tanggal) = '$filter_tanggal_esc'";
+}
+
+// Gabungkan klausa WHERE jika ada kondisi
+$where_clause = "";
+if (count($where_arr) > 0) {
+    $where_clause = "WHERE " . implode(" AND ", $where_arr);
 }
 
 $action = isset($_GET['action']) ? $_GET['action'] : '';
@@ -37,7 +61,7 @@ if ($action === 'excel') {
     exit();
 }
 
-// 2. EXPORT EXCEL SATUAN (PER BARIS)
+// 2. EXPORT EXCEL SATUAN
 if ($action === 'excel_satuan' && isset($_GET['id'])) {
     $id = mysqli_real_escape_string($koneksi, $_GET['id']);
     $d = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT * FROM t_pelanggaran_siswa WHERE id = '$id' LIMIT 1"));
@@ -63,7 +87,7 @@ if ($action === 'cetak_semua') {
     $q = mysqli_query($koneksi, "SELECT * FROM t_pelanggaran_siswa $where_clause ORDER BY tanggal DESC");
     echo "<body onload='window.print()'>
     <div style='margin-bottom: 15px;' class='no-print'>
-        <a href='laporan.php' style='text-decoration: none; padding: 6px 12px; background: #0d6efd; color: #fff; border-radius: 4px; display: inline-block;'>&laquo; Kembali ke Laporan</a>
+        <a href='laporan.php' style='text-decoration: none; padding: 6px 12px; background: #0d6efd; color: #fff; border-radius: 4px; display: inline-block;'>« Kembali ke Laporan</a>
         <button onclick='window.print()' style='padding: 6px 12px; cursor: pointer; margin-left: 5px;'>🖨️ Cetak Ulang</button>
     </div>
     <style>@media print { .no-print { display: none; } }</style>
@@ -84,7 +108,7 @@ if ($action === 'cetak_satuan' && isset($_GET['id'])) {
     if(!$d) exit("Data tidak ditemukan.");
     echo "<body onload='window.print()'>
     <div style='width:600px; margin:10px auto;' class='no-print'>
-        <a href='laporan.php' style='text-decoration: none; padding: 6px 12px; background: #0d6efd; color: #fff; border-radius: 4px; display: inline-block;'>&laquo; Kembali ke Laporan</a>
+        <a href='laporan.php' style='text-decoration: none; padding: 6px 12px; background: #0d6efd; color: #fff; border-radius: 4px; display: inline-block;'>« Kembali ke Laporan</a>
         <button onclick='window.print()' style='padding: 6px 12px; cursor: pointer; margin-left: 5px;'>🖨️ Cetak Ulang</button>
     </div>
     <style>@media print { .no-print { display: none; } }</style>
@@ -144,14 +168,34 @@ $query_laporan = mysqli_query($koneksi, "SELECT * FROM t_pelanggaran_siswa $wher
     <div class="col-md-9 col-lg-10 main-content">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2>Halaman Laporan Pelanggaran Siswa</h2>
-            <span class="badge bg-secondary"><?= htmlspecialchars($nama_user); ?> (<?= ucfirst($role); ?>)</span>
+            <span class="badge bg-secondary"><?= htmlspecialchars($nama_user); ?> (<?= ucfirst($role); ?><?php if(isset($kelas) && !empty($kelas)) echo " - Kelas $kelas"; ?>)</span>
         </div>
+
+        <!-- FORM FILTER SATU (TANGGAL) -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form method="GET" action="laporan.php" class="row g-3 align-items-end">
+                    <div class="col-md-6">
+                        <label for="tanggal" class="form-label">Filter Berdasarkan Tanggal Pelanggaran</label>
+                        <input type="date" class="form-control" id="tanggal" name="tanggal" value="<?= htmlspecialchars($filter_tanggal); ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <button type="submit" class="btn btn-primary">🔍 Filter</button>
+                        <a href="laporan.php" class="btn btn-secondary">🔄 Reset</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <div class="card shadow-sm"><div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="card-title m-0">Data Pelanggaran</h5>
+                <h5 class="card-title m-0">Data Pelanggaran <?php if(!empty($kelas)) echo "Kelas " . htmlspecialchars($kelas); ?></h5>
                 <div>
-                    <a href="laporan.php?action=excel" class="btn btn-success btn-sm">📁 Export Excel Semua</a>
-                    <a href="laporan.php?action=cetak_semua" target="_blank" class="btn btn-secondary btn-sm">🖨️ Cetak Semua</a>
+                    <?php 
+                        $query_string = !empty($filter_tanggal) ? "&tanggal=" . urlencode($filter_tanggal) : "";
+                    ?>
+                    <a href="laporan.php?action=excel<?= $query_string; ?>" class="btn btn-success btn-sm">📁 Export Excel Semua</a>
+                    <a href="laporan.php?action=cetak_semua<?= $query_string; ?>" target="_blank" class="btn btn-secondary btn-sm">🖨️ Cetak Semua</a>
                 </div>
             </div>
             <div class="table-responsive">
@@ -179,7 +223,7 @@ $query_laporan = mysqli_query($koneksi, "SELECT * FROM t_pelanggaran_siswa $wher
                                 </tr>
                             <?php $no++; endwhile; ?>
                         <?php else: ?>
-                            <tr><td colspan="8" class="text-center text-muted">Belum ada data.</td></tr>
+                            <tr><td colspan="8" class="text-center text-muted">Belum ada data pelanggaran untuk kelas Anda.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>

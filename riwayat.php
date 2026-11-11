@@ -6,6 +6,10 @@ if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
 }
+
+// Ambil nama user/guru yang sedang login dari session
+$nama_user = $_SESSION['name'] ?? '';
+$user_role = $_SESSION['role'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -39,7 +43,7 @@ if (!isset($_SESSION['user_id'])) {
 <div class="main">
     <h3 class="fw-bold mb-3">Riwayat Pelanggaran (Status Selesai)</h3>
     <div class="card border-0 shadow-sm">
-        <div class="card-header bg-success text-white">Daftar Pelanggaran Yang Telah Selesai Ditangani</div>
+        <div class="card-header bg-success text-white">Daftar Pelanggaran Yang Telah Selesai Ditangani (<?= htmlspecialchars($nama_user); ?>)</div>
         <div class="card-body">
             <div class="table-responsive">
                 <table id="tabelRiwayat" class="table table-bordered table-striped align-middle w-100">
@@ -59,14 +63,23 @@ if (!isset($_SESSION['user_id'])) {
                     <tbody>
                         <?php 
                         $no = 1; 
-                        // Hanya menampilkan data yang statusnya 'Selesai'
+                        
+                        // Menyiapkan dasar kueri
                         $sql_riwayat = "SELECT ps.*, s.nama AS s_nama, k.nama AS k_nama, p.nama AS p_nama 
                                         FROM t_pelanggaran_siswa ps 
                                         LEFT JOIN t_siswa s ON ps.siswa_id = s.id 
                                         LEFT JOIN t_kelas k ON ps.kelas_id = k.id 
                                         LEFT JOIN t_pelanggaran p ON ps.pelanggaran_id = p.id 
-                                        WHERE ps.status = 'Selesai' 
-                                        ORDER BY ps.id DESC";
+                                        WHERE ps.status = 'Selesai'";
+
+                        // Jika login sebagai guru/selain admin (misal: Aldi), batasi hanya pencatatannya sendiri
+                        // Sesuaikan kondisi ini dengan struktur database Anda (apakah 'nama_guru' atau menggunakan 'user_id')
+                        if ($user_role !== 'admin') {
+                            $escaped_nama = mysqli_real_escape_string($koneksi, $nama_user);
+                            $sql_riwayat .= " AND ps.nama_guru = '$escaped_nama'";
+                        }
+
+                        $sql_riwayat .= " ORDER BY ps.id DESC";
                         
                         $data = mysqli_query($koneksi, $sql_riwayat);
                         while($row = mysqli_fetch_assoc($data)): 

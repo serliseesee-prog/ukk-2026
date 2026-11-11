@@ -134,7 +134,7 @@ $(document).ready(function () {
         columnDefs: [{ targets: 0, orderable: false, searchable: false }],
         language: {
             search: 'Cari:', 
-            searchPlaceholder: 'Cari NIS atau nama siswa...',
+            
             lengthMenu: 'Tampilkan _MENU_ data', 
             info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
             zeroRecords: 'Data tidak ditemukan', 

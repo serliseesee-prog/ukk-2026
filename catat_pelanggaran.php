@@ -7,9 +7,33 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+// JIKA ADA REQUEST AJAX DARI JAVASCRIPT, PROSES DI SINI TANPA PERLU FILE BARU
+if (isset($_GET['ajax_kategori_id'])) {
+    header('Content-Type: application/json');
+    $kategori_id = (int)$_GET['ajax_kategori_id'];
+    $data = [];
+
+    // Query mencari jenis pelanggaran berdasarkan kategori
+    $query = mysqli_query($koneksi, "SELECT id, nama, poin FROM t_pelanggaran WHERE pelanggaran_kategori_id = $kategori_id ORDER BY nama ASC");
+    if (!$query || mysqli_num_rows($query) == 0) {
+        $query = mysqli_query($koneksi, "SELECT id, nama, poin FROM t_pelanggaran WHERE kategori_id = $kategori_id ORDER BY nama ASC");
+    }
+
+    if ($query) {
+        while ($row = mysqli_fetch_assoc($query)) {
+            $data[] = [
+                'id' => $row['id'],
+                'nama' => $row['nama'],
+                'poin' => $row['poin'] ?? 0
+            ];
+        }
+    }
+    echo json_encode($data);
+    exit();
+}
+
 $user_id = (int)$_SESSION['user_id'];
 $role = $_SESSION['role'] ?? 'user';
-$nama = $_SESSION['name'] ?? ($_SESSION['nama_user'] ?? ($_SESSION['nama'] ?? 'Pengguna'));
 
 if (isset($_POST['simpan'])) {
     $s_id = (int)$_POST['siswa_id'];
@@ -62,11 +86,6 @@ if (isset($_POST['simpan'])) {
     mysqli_stmt_execute($stmt);
     header("Location: catat_pelanggaran.php"); exit();
 }
-
-if (isset($_GET['hapus'])) {
-    mysqli_query($koneksi, "DELETE FROM t_pelanggaran_siswa WHERE id = " . (int)$_GET['hapus']);
-    header("Location: catat_pelanggaran.php"); exit();
-}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -74,7 +93,6 @@ if (isset($_GET['hapus'])) {
     <meta charset="UTF-8"><title>Catat Pelanggaran</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/2.3.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    <!-- Tambahan CSS Select2 -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
     <style>
@@ -107,11 +125,11 @@ if (isset($_GET['hapus'])) {
         <div class="card-body">
             <form method="POST">
                 <div class="row">
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-3 mb-3">
                         <label class="form-label">Tanggal</label>
                         <input type="date" name="tanggal" class="form-control" value="<?= date('Y-m-d'); ?>" required>
                     </div>
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-3 mb-3">
                         <label class="form-label">Siswa</label>
                         <select name="siswa_id" id="selectSiswa" class="form-select" required>
                             <option value="">-- Pilih Siswa --</option>
@@ -123,18 +141,27 @@ if (isset($_GET['hapus'])) {
                             <?php endwhile; ?>
                         </select>
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Pelanggaran</label>
-                        <select name="pelanggaran_id" id="selectPelanggaran" class="form-select" required>
-                            <option value="">-- Pilih Pelanggaran --</option>
-                            <?php $q = mysqli_query($koneksi, "SELECT id, kode, nama, poin FROM t_pelanggaran ORDER BY kode ASC"); while($r = mysqli_fetch_assoc($q)): ?>
-                                <option value="<?= $r['id'] ?>"><?= $r['kode'].' - '.$r['nama'].' ('.$r['poin'].' Poin)' ?></option>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Kategori Pelanggaran</label>
+                        <select id="selectKategori" class="form-select">
+                            <option value="">-- Pilih Kategori --</option>
+                            <?php 
+                            $q_kat = mysqli_query($koneksi, "SELECT id, nama FROM t_pelanggaran_kategori WHERE status_aktif = 1 ORDER BY nama ASC"); 
+                            while($rk = mysqli_fetch_assoc($q_kat)): 
+                            ?>
+                                <option value="<?= $rk['id'] ?>"><?= $rk['nama'] ?></option>
                             <?php endwhile; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Jenis Pelanggaran</label>
+                        <select name="pelanggaran_id" id="selectPelanggaran" class="form-select" required>
+                            <option value="">-- Pilih Kategori Terlebih Dahulu --</option>
                         </select>
                     </div>
                 </div>
                 <button type="submit" name="simpan" class="btn btn-primary">Simpan</button>
-                <button type="reset" class="btn btn-secondary">Reset</button>
+                <button type="reset" class="btn btn-secondary" onclick="$('#selectPelanggaran').html('<option value=\'\'>-- Pilih Kategori Terlebih Dahulu --</option>').trigger('change');">Reset</button>
             </form>
         </div>
     </div>
@@ -153,14 +180,11 @@ if (isset($_GET['hapus'])) {
                             <th>Pelanggaran</th>
                             <th>Poin</th>
                             <th>Guru Pencatat</th>
-                            <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php 
                         $no = 1; 
-                        
-                        // Query menampilkan seluruh data pelanggaran dari semua kelas tanpa filter
                         $sql_pelanggaran = "SELECT ps.*, s.nama AS s_nama, k.nama AS k_nama, p.nama AS p_nama 
                                             FROM t_pelanggaran_siswa ps 
                                             LEFT JOIN t_siswa s ON ps.siswa_id = s.id 
@@ -179,7 +203,6 @@ if (isset($_GET['hapus'])) {
                             <td><?= htmlspecialchars($row['p_nama'] ?? $row['nama_pelanggaran'] ?? '-'); ?></td>
                             <td><span class="badge bg-danger"><?= (int)$row['poin']; ?></span></td>
                             <td><?= htmlspecialchars($row['nama_guru'] ?? '-'); ?></td>
-                            <td><a href="catat_pelanggaran.php?hapus=<?= (int)$row['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Hapus data?')">Hapus</a></td>
                         </tr>
                         <?php endwhile; ?>
                     </tbody>
@@ -188,11 +211,11 @@ if (isset($_GET['hapus'])) {
         </div>
     </div>
 </div>
+
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/2.3.4/js/dataTables.bootstrap5.min.js"></script>
-<!-- Tambahan JS Select2 -->
+<script src="https://cdn.jsdelivr.net/npm/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function () { 
@@ -208,16 +231,43 @@ $(document).ready(function () {
         }
     }); 
 
-    $('#selectSiswa').select2({
-        theme: 'bootstrap-5',
-        placeholder: '-- Pilih Siswa --',
-        allowClear: true
-    });
+    $('#selectSiswa').select2({ theme: 'bootstrap-5', placeholder: '-- Pilih Siswa --', allowClear: true });
+    $('#selectKategori').select2({ theme: 'bootstrap-5', placeholder: '-- Pilih Kategori --', allowClear: true });
+    $('#selectPelanggaran').select2({ theme: 'bootstrap-5', placeholder: '-- Pilih Jenis Pelanggaran --', allowClear: true });
 
-    $('#selectPelanggaran').select2({
-        theme: 'bootstrap-5',
-        placeholder: '-- Pilih Pelanggaran --',
-        allowClear: true
+    // AJAX diarahkan langsung ke file ini sendiri
+    $('#selectKategori').on('change', function() {
+        var kategoriId = $(this).val();
+        var selectPelanggaran = $('#selectPelanggaran');
+        
+        selectPelanggaran.empty().append('<option value="">-- Memuat Data... --</option>').trigger('change');
+
+        if (kategoriId) {
+            $.ajax({
+                url: 'catat_pelanggaran.php',
+                type: 'GET',
+                data: { ajax_kategori_id: kategoriId },
+                dataType: 'json',
+                success: function(data) {
+                    selectPelanggaran.empty().append('<option value="">-- Pilih Jenis Pelanggaran --</option>');
+                    if(data.length > 0) {
+                        $.each(data, function(index, item) {
+                            var text = item.nama + ' (' + item.poin + ' Poin)';
+                            var option = new Option(text, item.id, false, false);
+                            selectPelanggaran.append(option);
+                        });
+                    } else {
+                        selectPelanggaran.append('<option value="">-- Tidak ada jenis pelanggaran di kategori ini --</option>');
+                    }
+                    selectPelanggaran.trigger('change');
+                },
+                error: function() {
+                    selectPelanggaran.empty().append('<option value="">-- Gagal Memuat Data --</option>').trigger('change');
+                }
+            });
+        } else {
+            selectPelanggaran.empty().append('<option value="">-- Pilih Kategori Terlebih Dahulu --</option>').trigger('change');
+        }
     });
 });
 </script>

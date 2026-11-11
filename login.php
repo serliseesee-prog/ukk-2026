@@ -73,12 +73,21 @@ if (isset($_POST['login'])) {
         .btn-primary:hover {
             background: #0b5ed7;
         }
+        .logo-img {
+            width: 80px;
+            height: auto;
+            display: block;
+            margin: 0 auto 15px auto;
+        }
     </style>
 </head>
 <body>
     <div class="card shadow">
         <div class="card-body">
-            <h3 class="text-center mb-4 fw-bold text-primary">Login Sistem</h3>
+            <!-- Tambahan Logo Sekolah -->
+            <img src="logo.sekolah.jpeg" alt="Logo Sekolah" class="logo-img">
+            
+            <h3 class="text-center mb-4 fw-bold text-primary">login</h3>
             <?php if (isset($error)): ?>
                 <div class="alert alert-danger py-2 small"><?= $error; ?></div>
             <?php endif; ?>

@@ -12,28 +12,61 @@ function e($v) {
     return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
-// SIMPAN / EDIT
+// AMBIL TAHUN AJARAN YANG AKTIF OTOMATIS
+$query_ta_aktif = mysqli_query($koneksi, "SELECT * FROM t_tahun_ajaran WHERE status_aktif = 1 LIMIT 1");
+$tahun_aktif = mysqli_fetch_assoc($query_ta_aktif);
+$tahun_ajaran_id_aktif = $tahun_aktif['id'] ?? '';
+$nama_tahun_aktif = $tahun_aktif['nama'] ?? 'Tidak ada Tahun Ajaran Aktif';
+
+// SIMPAN / EDIT DENGAN VALIDASI KETAT (1 GURU HANYA 1 KELAS DI TAHUN AJARAN AKTIF)
 if (isset($_POST['simpan'])) {
     $id = (int)($_POST['id'] ?? 0);
-    $tahun = (int)$_POST['tahun_ajaran_id'];
-    $kelas = (int)$_POST['kelas_id'];
-    $guru = (int)$_POST['guru_id'];
+    $tahun = (int)$tahun_ajaran_id_aktif; 
+    $kelas = (int)($_POST['kelas_id'] ?? 0);
+    $guru = (int)($_POST['guru_id'] ?? 0);
     $status = 1; // Default status aktif
 
     if ($id) {
+        // Mode Edit: Cek apakah guru ini sudah menjadi wali kelas di KELAS LAIN pada tahun ajaran yang sama
+        $sql_cek = "SELECT id FROM t_wali_kelas WHERE guru_id = ? AND tahun_ajaran_id = ? AND id != ?";
+        $stmt_cek = mysqli_prepare($koneksi, $sql_cek);
+        mysqli_stmt_bind_param($stmt_cek, "iii", $guru, $tahun, $id);
+        mysqli_stmt_execute($stmt_cek);
+        $result_cek = mysqli_stmt_get_result($stmt_cek);
+
+        if (mysqli_num_rows($result_cek) > 0) {
+            header("Location: kelola_wali_kelas.php?pesan=duplikat_guru");
+            exit();
+        }
+
         $sql = "UPDATE t_wali_kelas SET tahun_ajaran_id=?, kelas_id=?, guru_id=?, status_aktif=? WHERE id=?";
         $stmt = mysqli_prepare($koneksi, $sql);
-        // Diperbaiki dari 'iiii' menjadi 'iiiii' karena ada 5 parameter
         mysqli_stmt_bind_param($stmt, "iiiii", $tahun, $kelas, $guru, $status, $id);
+        mysqli_stmt_execute($stmt);
+        
+        header("Location: kelola_wali_kelas.php?pesan=sukses_edit");
+        exit();
     } else {
+        // Mode Tambah: Cek apakah guru ini sudah terdaftar sebagai wali kelas di tahun ajaran tersebut
+        $sql_cek = "SELECT id FROM t_wali_kelas WHERE guru_id = ? AND tahun_ajaran_id = ?";
+        $stmt_cek = mysqli_prepare($koneksi, $sql_cek);
+        mysqli_stmt_bind_param($stmt_cek, "ii", $guru, $tahun);
+        mysqli_stmt_execute($stmt_cek);
+        $result_cek = mysqli_stmt_get_result($stmt_cek);
+
+        if (mysqli_num_rows($result_cek) > 0) {
+            header("Location: kelola_wali_kelas.php?pesan=duplikat_guru");
+            exit();
+        }
+
         $sql = "INSERT INTO t_wali_kelas (tahun_ajaran_id, kelas_id, guru_id, status_aktif) VALUES (?, ?, ?, ?)";
         $stmt = mysqli_prepare($koneksi, $sql);
         mysqli_stmt_bind_param($stmt, "iiii", $tahun, $kelas, $guru, $status);
+        mysqli_stmt_execute($stmt);
+        
+        header("Location: kelola_wali_kelas.php?pesan=sukses_tambah");
+        exit();
     }
-
-    mysqli_stmt_execute($stmt);
-    header("Location: kelola_wali_kelas.php");
-    exit();
 }
 
 // HAPUS
@@ -42,7 +75,7 @@ if (isset($_GET['hapus'])) {
     $stmt = mysqli_prepare($koneksi, "DELETE FROM t_wali_kelas WHERE id=?");
     mysqli_stmt_bind_param($stmt, "i", $id);
     mysqli_stmt_execute($stmt);
-    header("Location: kelola_wali_kelas.php");
+    header("Location: kelola_wali_kelas.php?pesan=sukses_hapus");
     exit();
 }
 
@@ -61,7 +94,6 @@ if (isset($_GET['edit'])) {
 
 $guru = mysqli_query($koneksi, "SELECT id,nama FROM t_guru WHERE status_aktif=1 ORDER BY nama");
 $kelas = mysqli_query($koneksi, "SELECT id,nama FROM t_kelas WHERE status_aktif=1 ORDER BY nama");
-$tahun = mysqli_query($koneksi, "SELECT id,nama FROM t_tahun_ajaran ORDER BY nama DESC");
 
 $data = mysqli_query($koneksi, "
     SELECT wk.*, g.nama AS nama_guru, k.nama AS nama_kelas,
@@ -81,8 +113,13 @@ $data = mysqli_query($koneksi, "
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kelola Wali Kelas</title>
 
+<!-- Bootstrap 5 CSS -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<!-- DataTables Bootstrap 5 CSS -->
 <link href="https://cdn.datatables.net/2.3.4/css/dataTables.bootstrap5.css" rel="stylesheet">
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 
 <style>
 body {
@@ -154,6 +191,31 @@ body {
     <h2 class="mb-3">Kelola Wali Kelas</h2>
     <hr>
 
+    <!-- NOTIFIKASI / ALERT -->
+    <?php if (isset($_GET['pesan'])): ?>
+        <?php if ($_GET['pesan'] == 'duplikat_guru'): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <strong>Gagal!</strong> Guru tersebut sudah terdaftar sebagai wali kelas untuk kelas lain pada tahun ajaran aktif ini. Satu guru tidak boleh memegang dua kelas sekaligus.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php elseif ($_GET['pesan'] == 'sukses_tambah'): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <strong>Berhasil!</strong> Data wali kelas baru berhasil ditambahkan.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php elseif ($_GET['pesan'] == 'sukses_edit'): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <strong>Berhasil!</strong> Data wali kelas berhasil diperbarui.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php elseif ($_GET['pesan'] == 'sukses_hapus'): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <strong>Berhasil!</strong> Data wali kelas berhasil dihapus.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
+    <?php endif; ?>
+
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-primary text-white">
             <?= $edit['id'] ? 'Edit Wali Kelas' : 'Tambah Wali Kelas' ?>
@@ -163,23 +225,21 @@ body {
                 <input type="hidden" name="id" value="<?= e($edit['id']) ?>">
 
                 <div class="row">
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-6 mb-3">
                         <label class="form-label">Tahun Ajaran</label>
-                        <select name="tahun_ajaran_id" class="form-select" required>
-                            <option value="">-- Pilih Tahun --</option>
-                            <?php while($t = mysqli_fetch_assoc($tahun)): ?>
-                            <option value="<?= $t['id'] ?>" <?= $edit['tahun_ajaran_id'] == $t['id'] ? 'selected' : '' ?>>
-                                <?= e($t['nama']) ?>
-                            </option>
-                            <?php endwhile; ?>
-                        </select>
+                        <input type="hidden" name="tahun_ajaran_id" value="<?= $tahun_ajaran_id_aktif ?>">
+                        <input type="text" class="form-control bg-light" value="<?= e($nama_tahun_aktif) ?>" readonly>
+                        <small class="text-muted">Tahun ajaran otomatis diset ke tahun ajaran yang sedang aktif.</small>
                     </div>
 
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-6 mb-3">
                         <label class="form-label">Kelas</label>
-                        <select name="kelas_id" class="form-select" required>
+                        <select name="kelas_id" id="kelas_id" class="form-select" required>
                             <option value="">-- Pilih Kelas --</option>
-                            <?php while($k = mysqli_fetch_assoc($kelas)): ?>
+                            <?php 
+                            mysqli_data_seek($kelas, 0);
+                            while($k = mysqli_fetch_assoc($kelas)): 
+                            ?>
                             <option value="<?= $k['id'] ?>" <?= $edit['kelas_id'] == $k['id'] ? 'selected' : '' ?>>
                                 <?= e($k['nama']) ?>
                             </option>
@@ -187,11 +247,14 @@ body {
                         </select>
                     </div>
 
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-12 mb-3">
                         <label class="form-label">Guru Wali Kelas</label>
-                        <select name="guru_id" class="form-select" required>
+                        <select name="guru_id" id="guru_id" class="form-select" required>
                             <option value="">-- Pilih Guru --</option>
-                            <?php while($g = mysqli_fetch_assoc($guru)): ?>
+                            <?php 
+                            mysqli_data_seek($guru, 0);
+                            while($g = mysqli_fetch_assoc($guru)): 
+                            ?>
                             <option value="<?= $g['id'] ?>" <?= $edit['guru_id'] == $g['id'] ? 'selected' : '' ?>>
                                 <?= e($g['nama']) ?>
                             </option>
@@ -247,12 +310,17 @@ body {
     </div>
 </div>
 
+<!-- JavaScript Dependencies -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.js"></script>
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.bootstrap5.js"></script>
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
 $(document).ready(function () {
+    // Inisialisasi DataTable
     new DataTable('#tabelWaliKelas', {
         pageLength: 10,
         lengthMenu: [5, 10, 25, 50],
@@ -273,6 +341,19 @@ $(document).ready(function () {
                 previous: "Sebelumnya"
             }
         }
+    });
+
+    // Inisialisasi Select2 untuk pencarian di dropdown Kelas dan Guru
+    $('#kelas_id').select2({
+        theme: 'bootstrap-5',
+        placeholder: '-- Pilih Kelas --',
+        allowClear: true
+    });
+
+    $('#guru_id').select2({
+        theme: 'bootstrap-5',
+        placeholder: '-- Pilih Guru --',
+        allowClear: true
     });
 });
 </script>

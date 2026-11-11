@@ -41,17 +41,31 @@ $total_kelas = $query_kelas ? (int) mysqli_fetch_assoc($query_kelas)['total'] : 
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         body { background-color: #f8f9fa; }
+        
+        /* SIDEBARD ASLI (TIDAK DIUBAH) */
         .sidebar { min-height: 100vh; background-color: #212529; color: #fff; position: fixed; width: 250px; top: 0; left: 0; }
         .sidebar a { color: #adb5bd; text-decoration: none; display: block; padding: 10px 20px; }
         .sidebar a:hover, .sidebar a.active { color: #fff; background-color: #0d6efd; }
-        .main-content { margin-left: 250px; padding: 20px; }
-        .card { border-radius: 6px; }
-        .card h2 { margin-bottom: 0; }
+        
+        /* MAIN CONTENT YANG DIPERCANTIK */
+        .main-content { margin-left: 250px; padding: 30px; }
+        
+        .card { 
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 8px; 
+            transition: all 0.2s ease-in-out;
+        }
+        .card:hover {
+            box-shadow: 0 .5rem 1rem rgba(0,0,0,.08) !important;
+        }
+        .card h2 { margin-bottom: 0; font-weight: 700; color: #212529; }
+        
         @media (max-width: 768px) {
             .sidebar { width: 200px; }
-            .main-content { margin-left: 200px; padding: 12px; }
+            .main-content { margin-left: 200px; padding: 15px; }
         }
     </style>
 </head>
@@ -93,35 +107,36 @@ $total_kelas = $query_kelas ? (int) mysqli_fetch_assoc($query_kelas)['total'] : 
 
     <!-- MAIN CONTENT -->
     <div class="main-content">
-        <h2>Dashboard</h2>
-        <p>
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <h2 class="fw-bold mb-0">Dashboard</h2>
+        </div>
+        <p class="text-muted mb-4">
             Pengguna: <strong><?= htmlspecialchars($nama); ?></strong> | 
-            Akses: <strong><?= strtoupper(htmlspecialchars($display_role === 'wali_kelas' ? 'Wali Kelas' : $role)); ?></strong>
+            Akses: <span class="badge bg-secondary"><?= strtoupper(htmlspecialchars($display_role === 'wali_kelas' ? 'Wali Kelas' : $role)); ?></span>
         </p>
-        <hr>
 
-        <div class="row">
-            <div class="col-md-4 mb-3">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title">Data Siswa</h5>
-                        <h2><?= $total_siswa; ?></h2>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card shadow-sm bg-white p-3 border-start border-primary border-4">
+                    <div class="card-body py-2 px-1">
+                        <span class="text-muted text-uppercase fs-7 fw-semibold tracking-wide">Data Siswa</span>
+                        <h2 class="mt-2 text-primary"><?= number_format($total_siswa); ?></h2>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4 mb-3">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title">Data Guru</h5>
-                        <h2><?= $total_guru; ?></h2>
+            <div class="col-md-4">
+                <div class="card shadow-sm bg-white p-3 border-start border-success border-4">
+                    <div class="card-body py-2 px-1">
+                        <span class="text-muted text-uppercase fs-7 fw-semibold tracking-wide">Data Guru</span>
+                        <h2 class="mt-2 text-success"><?= number_format($total_guru); ?></h2>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4 mb-3">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title">Kelas</h5>
-                        <h2><?= $total_kelas; ?></h2>
+            <div class="col-md-4">
+                <div class="card shadow-sm bg-white p-3 border-start border-warning border-4">
+                    <div class="card-body py-2 px-1">
+                        <span class="text-muted text-uppercase fs-7 fw-semibold tracking-wide">Kelas</span>
+                        <h2 class="mt-2 text-warning"><?= number_format($total_kelas); ?></h2>
                     </div>
                 </div>
             </div>
