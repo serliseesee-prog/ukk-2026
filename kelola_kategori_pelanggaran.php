@@ -1,11 +1,21 @@
-<?php
-require_once 'koneksi.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+<?php
+require_once __DIR__ . '/koneksi.php';
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
+// CEK SESSION ADMIN
+$user_id = $_SESSION['user_id'] ?? '';
+$role = strtolower(trim($_SESSION['role'] ?? ''));
+
+if (empty($user_id) || $role !== 'admin') {
     header("Location: login.php");
     exit();
 }
 
+// FUNGSI ESCAPE
 function e($value) {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
@@ -13,18 +23,24 @@ function e($value) {
 // PROSES SIMPAN TAMBAH / EDIT
 if (isset($_POST['simpan'])) {
     $id = (int)($_POST['id'] ?? 0);
-    $nama = mysqli_real_escape_string($koneksi, $_POST['nama']);
-    $deskripsi = mysqli_real_escape_string($koneksi, $_POST['deskripsi']);
+    $nama = mysqli_real_escape_string($koneksi, $_POST['nama'] ?? '');
+    $deskripsi = mysqli_real_escape_string($koneksi, $_POST['deskripsi'] ?? '');
     $status = isset($_POST['status_aktif']) ? 1 : 0;
 
-    if ($id) {
-        mysqli_query($koneksi, "UPDATE t_pelanggaran_kategori
-            SET nama='$nama', deskripsi='$deskripsi',
-            status_aktif='$status' WHERE id='$id'");
+    if ($id > 0) {
+        $query = "UPDATE t_pelanggaran_kategori
+                  SET nama='$nama',
+                      deskripsi='$deskripsi',
+                      status_aktif='$status'
+                  WHERE id='$id'";
     } else {
-        mysqli_query($koneksi, "INSERT INTO t_pelanggaran_kategori
-            (nama, deskripsi, status_aktif)
-            VALUES ('$nama', '$deskripsi', '$status')");
+        $query = "INSERT INTO t_pelanggaran_kategori
+                  (nama, deskripsi, status_aktif)
+                  VALUES ('$nama', '$deskripsi', '$status')";
+    }
+
+    if (!mysqli_query($koneksi, $query)) {
+        die("Gagal menyimpan data: " . e(mysqli_error($koneksi)));
     }
 
     header("Location: kelola_kategori_pelanggaran.php");
@@ -35,8 +51,14 @@ if (isset($_POST['simpan'])) {
 if (isset($_GET['hapus'])) {
     $id = (int)$_GET['hapus'];
 
-    mysqli_query($koneksi,
-        "DELETE FROM t_pelanggaran_kategori WHERE id='$id'");
+    if ($id > 0) {
+        $hapus = mysqli_query($koneksi,
+            "DELETE FROM t_pelanggaran_kategori WHERE id='$id'");
+
+        if (!$hapus) {
+            die("Gagal menghapus data: " . e(mysqli_error($koneksi)));
+        }
+    }
 
     header("Location: kelola_kategori_pelanggaran.php");
     exit();
@@ -61,7 +83,7 @@ if (isset($_GET['edit'])) {
     }
 }
 
-// AMBIL DATA KATEGORI (Diurutkan berdasarkan id ASC agar input terakhir/baru muncul di bawah)
+// AMBIL DATA KATEGORI
 $data = mysqli_query($koneksi,
     "SELECT * FROM t_pelanggaran_kategori ORDER BY id ASC");
 
@@ -79,10 +101,7 @@ if (!$data) {
 
     <title>Kelola Kategori Pelanggaran</title>
 
-    <!-- BOOTSTRAP -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- DATATABLES -->
     <link href="https://cdn.datatables.net/2.3.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
 
     <style>
@@ -177,6 +196,7 @@ if (!$data) {
                 Kelola Kategori Pelanggaran
             </a>
         </li>
+
         <li class="nav-item mb-1">
             <a href="kelola_jenis_pelanggaran.php">Kelola Jenis Pelanggaran</a>
         </li>
@@ -184,7 +204,7 @@ if (!$data) {
         <li class="nav-item mb-1">
             <a href="laporan.php">Laporan</a>
         </li>
-        
+
         <li class="nav-item mb-1">
             <a href="about_me.php">About Me</a>
         </li>
@@ -240,6 +260,7 @@ if (!$data) {
                         id="status_aktif"
                         value="1"
                         <?= $edit['status_aktif'] == 1 ? 'checked' : ''; ?>>
+
                     <label class="form-check-label" for="status_aktif">
                         Status Aktif
                     </label>
@@ -251,9 +272,7 @@ if (!$data) {
 
                 <?php if ($edit['id']): ?>
                     <a href="kelola_kategori_pelanggaran.php"
-                        class="btn btn-secondary">
-                        Batal
-                    </a>
+                        class="btn btn-secondary">Batal</a>
                 <?php endif; ?>
 
             </form>
@@ -286,27 +305,31 @@ if (!$data) {
                     </thead>
 
                     <tbody>
+
                         <?php $no = 1; ?>
+
                         <?php while ($r = mysqli_fetch_assoc($data)): ?>
                             <tr>
+
                                 <td><?= $no++; ?></td>
+
                                 <td><?= e($r['nama']); ?></td>
+
                                 <td>
                                     <?= $r['deskripsi'] ? e($r['deskripsi']) : '-'; ?>
                                 </td>
+
                                 <td>
                                     <?php if ($r['status_aktif'] == 1): ?>
-                                        <span class="badge bg-success">
-                                            Aktif
-                                        </span>
+                                        <span class="badge bg-success">Aktif</span>
                                     <?php else: ?>
-                                        <span class="badge bg-secondary">
-                                            Tidak Aktif
-                                        </span>
+                                        <span class="badge bg-secondary">Tidak Aktif</span>
                                     <?php endif; ?>
                                 </td>
+
                                 <td>
                                     <div class="d-flex gap-1">
+
                                         <a href="kelola_kategori_pelanggaran.php?edit=<?= (int)$r['id']; ?>"
                                             class="btn btn-sm btn-warning">
                                             Edit
@@ -317,16 +340,18 @@ if (!$data) {
                                             onclick="return confirm('Yakin ingin menghapus kategori ini?')">
                                             Hapus
                                         </a>
+
                                     </div>
                                 </td>
+
                             </tr>
                         <?php endwhile; ?>
+
                     </tbody>
 
                 </table>
 
             </div>
-
         </div>
     </div>
 
@@ -334,11 +359,8 @@ if (!$data) {
 
 <!-- JAVASCRIPT -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.min.js"></script>
-
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.bootstrap5.min.js"></script>
 
 <script>
@@ -364,10 +386,7 @@ $(document).ready(function () {
         },
 
         pageLength: 10,
-
         lengthMenu: [5, 10, 25, 50, 100],
-
-        // Mengatur urutan berdasarkan kolom No (kolom ke-0) secara ascending
         order: [[0, 'asc']],
 
         columnDefs: [
@@ -378,7 +397,6 @@ $(document).ready(function () {
             }
         ],
 
-        // Dimatikan agar urutan tidak tersimpan secara acak di cache browser
         stateSave: false
 
     });

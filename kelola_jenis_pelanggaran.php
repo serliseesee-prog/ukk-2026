@@ -1,69 +1,111 @@
 
 <?php
-require_once 'koneksi.php';
+require_once __DIR__ . '/koneksi.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
+// CEK SESSION ADMIN
+$user_id = $_SESSION['user_id'] ?? '';
+$role = strtolower(trim($_SESSION['role'] ?? ''));
+
+if (empty($user_id) || $role !== 'admin') {
     header("Location: login.php");
     exit();
 }
 
+// FUNGSI ESCAPE
 function e($value) {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
 // SIMPAN / UPDATE DATA
 if (isset($_POST['simpan'])) {
-    $id = $_POST['id'] ?? '';
-    $nama = mysqli_real_escape_string($koneksi, $_POST['nama']);
-    $deskripsi = mysqli_real_escape_string($koneksi, $_POST['deskripsi']);
-    $status_aktif = isset($_POST['status_aktif']) ? 1 : 0;
+    $id = (int)($_POST['id'] ?? 0);
+    $kategori_id = (int)($_POST['pelanggaran_kategori_id'] ?? 0);
+    $kode = mysqli_real_escape_string($koneksi, $_POST['kode'] ?? '');
+    $nama = mysqli_real_escape_string($koneksi, $_POST['nama'] ?? '');
+    $poin = (int)($_POST['poin'] ?? 0);
+    $deskripsi = mysqli_real_escape_string($koneksi, $_POST['deskripsi'] ?? '');
 
-    if (!empty($id)) {
-        $id = (int)$id;
-        mysqli_query($koneksi, "UPDATE t_pelanggaran_kategori SET
-            nama='$nama',
-            deskripsi='$deskripsi',
-            status_aktif='$status_aktif'
-            WHERE id='$id'");
+    if ($id > 0) {
+        $query = "UPDATE t_pelanggaran SET
+                  pelanggaran_kategori_id='$kategori_id',
+                  kode='$kode',
+                  nama='$nama',
+                  poin='$poin',
+                  deskripsi='$deskripsi'
+                  WHERE id='$id'";
     } else {
-        mysqli_query($koneksi, "INSERT INTO t_pelanggaran_kategori
-            (nama, deskripsi, status_aktif)
-            VALUES ('$nama', '$deskripsi', '$status_aktif')");
+        $query = "INSERT INTO t_pelanggaran
+                  (pelanggaran_kategori_id, kode, nama, poin, deskripsi)
+                  VALUES ('$kategori_id', '$kode', '$nama', '$poin', '$deskripsi')";
     }
 
-    header("Location: kelola_kategori_pelanggaran.php");
+    if (!mysqli_query($koneksi, $query)) {
+        die("Gagal menyimpan data: " . e(mysqli_error($koneksi)));
+    }
+
+    header("Location: kelola_jenis_pelanggaran.php");
     exit();
 }
 
 // HAPUS DATA
 if (isset($_GET['hapus'])) {
     $id = (int)$_GET['hapus'];
-    mysqli_query($koneksi, "DELETE FROM t_pelanggaran_kategori WHERE id='$id'");
-    header("Location: kelola_kategori_pelanggaran.php");
+
+    if ($id > 0) {
+        $hapus = mysqli_query($koneksi,
+            "DELETE FROM t_pelanggaran WHERE id='$id'");
+
+        if (!$hapus) {
+            die("Gagal menghapus data: " . e(mysqli_error($koneksi)));
+        }
+    }
+
+    header("Location: kelola_jenis_pelanggaran.php");
     exit();
 }
 
 // DATA EDIT
 $edit = [
     'id' => '',
+    'pelanggaran_kategori_id' => '',
+    'kode' => '',
     'nama' => '',
-    'deskripsi' => '',
-    'status_aktif' => 1
+    'poin' => '',
+    'deskripsi' => ''
 ];
 
 if (isset($_GET['edit'])) {
     $id = (int)$_GET['edit'];
+
     $resultEdit = mysqli_query($koneksi,
-        "SELECT * FROM t_pelanggaran_kategori WHERE id='$id'");
+        "SELECT * FROM t_pelanggaran WHERE id='$id'");
 
     if ($resultEdit && mysqli_num_rows($resultEdit) > 0) {
         $edit = mysqli_fetch_assoc($resultEdit);
     }
 }
 
-// DATA KATEGORI
+// DATA KATEGORI AKTIF UNTUK DROPDOWN
+$data_kategori = mysqli_query($koneksi,
+    "SELECT * FROM t_pelanggaran_kategori
+     WHERE status_aktif=1
+     ORDER BY nama ASC");
+
+if (!$data_kategori) {
+    die("Gagal mengambil kategori: " . e(mysqli_error($koneksi)));
+}
+
+// DATA JENIS PELANGGARAN
 $data = mysqli_query($koneksi,
-    "SELECT * FROM t_pelanggaran_kategori ORDER BY nama ASC");
+    "SELECT p.*, pk.nama AS nama_kategori
+     FROM t_pelanggaran p
+     LEFT JOIN t_pelanggaran_kategori pk
+     ON p.pelanggaran_kategori_id = pk.id
+     ORDER BY p.id ASC");
 
 if (!$data) {
     die("Gagal mengambil data: " . e(mysqli_error($koneksi)));
@@ -72,15 +114,14 @@ if (!$data) {
 
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Kelola Kategori Pelanggaran</title>
 
-    <!-- Bootstrap 5 -->
+    <title>Kelola Jenis Pelanggaran</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- DataTables Bootstrap 5 -->
     <link href="https://cdn.datatables.net/2.3.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
 
     <style>
@@ -137,9 +178,11 @@ if (!$data) {
 
 <!-- SIDEBAR -->
 <div class="sidebar d-flex flex-column p-3">
+
     <h4 class="text-white mb-4">Pelanggaran Siswa</h4>
 
     <ul class="nav nav-pills flex-column mb-auto">
+
         <li class="nav-item mb-1">
             <a href="dashboard.php">Dashboard</a>
         </li>
@@ -169,52 +212,83 @@ if (!$data) {
         </li>
 
         <li class="nav-item mb-1">
-            <a href="kelola_kategori_pelanggaran.php">
-                Kelola Kategori Pelanggaran
+            <a href="kelola_kategori_pelanggaran.php">Kelola Kategori Pelanggaran</a>
+        </li>
+
+        <li class="nav-item mb-1">
+            <a href="kelola_jenis_pelanggaran.php" class="active">
+                Kelola Jenis Pelanggaran
             </a>
         </li>
 
         <li class="nav-item mb-1">
-            <a href="kelola_jenis_pelanggaran.php"class="active">Kelola Jenis Pelanggaran</a>
-        </li>
-              <li class="nav-item mb-1">
             <a href="laporan.php">Laporan</a>
         </li>
+
         <li class="nav-item mb-1">
             <a href="about_me.php">About Me</a>
         </li>
-        
+
     </ul>
 
     <hr>
+
     <a href="logout.php" class="text-danger">Logout</a>
+
 </div>
 
 <!-- KONTEN UTAMA -->
 <div class="main-content">
 
-    <h2>Kelola Kategori Pelanggaran</h2>
+    <h2>Kelola Jenis Pelanggaran</h2>
 
-    <div class="mb-3">
-        
-    </div>
+    <div class="mb-3"></div>
 
     <!-- FORM TAMBAH / EDIT -->
     <div class="card shadow-sm mb-4">
 
         <div class="card-header bg-primary text-white">
-            <?= !empty($edit['id']) ? 'Edit Kategori Pelanggaran' : 'Tambah Kategori Pelanggaran'; ?>
+            <?= $edit['id'] ? 'Edit Jenis Pelanggaran' : 'Tambah Jenis Pelanggaran'; ?>
         </div>
 
         <div class="card-body">
+
             <form method="POST">
 
                 <input type="hidden" name="id" value="<?= e($edit['id']); ?>">
 
                 <div class="mb-3">
-                    <label class="form-label">Nama Kategori</label>
+                    <label class="form-label">Kategori Pelanggaran</label>
+
+                    <select name="pelanggaran_kategori_id" class="form-control" required>
+                        <option value="">Pilih Kategori</option>
+
+                        <?php while ($k = mysqli_fetch_assoc($data_kategori)): ?>
+                            <option value="<?= (int)$k['id']; ?>"
+                                <?= ($edit['pelanggaran_kategori_id'] == $k['id']) ? 'selected' : ''; ?>>
+                                <?= e($k['nama']); ?>
+                            </option>
+                        <?php endwhile; ?>
+
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Kode Pelanggaran</label>
+                    <input type="text" name="kode" class="form-control"
+                        value="<?= e($edit['kode']); ?>" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Nama Pelanggaran</label>
                     <input type="text" name="nama" class="form-control"
                         value="<?= e($edit['nama']); ?>" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Poin</label>
+                    <input type="number" name="poin" class="form-control"
+                        value="<?= e($edit['poin']); ?>" min="0" required>
                 </div>
 
                 <div class="mb-3">
@@ -223,91 +297,83 @@ if (!$data) {
                         rows="3"><?= e($edit['deskripsi']); ?></textarea>
                 </div>
 
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox"
-                        name="status_aktif" id="status_aktif" value="1"
-                        <?= $edit['status_aktif'] == 1 ? 'checked' : ''; ?>>
-
-                    <label class="form-check-label" for="status_aktif">
-                        Status Aktif
-                    </label>
-                </div>
-
                 <button type="submit" name="simpan" class="btn btn-primary">
-                    <?= !empty($edit['id']) ? 'Update Data' : 'Simpan'; ?>
+                    <?= $edit['id'] ? 'Update Data' : 'Simpan'; ?>
                 </button>
 
-                <?php if (!empty($edit['id'])): ?>
-                    <a href="kelola_kategori_pelanggaran.php"
-                        class="btn btn-secondary">Batal</a>
+                <?php if ($edit['id']): ?>
+                    <a href="kelola_jenis_pelanggaran.php" class="btn btn-secondary">
+                        Batal
+                    </a>
                 <?php endif; ?>
 
             </form>
+
         </div>
     </div>
 
-    <!-- TABEL DATA KATEGORI -->
+    <!-- TABEL DATA JENIS PELANGGARAN -->
     <div class="card shadow-sm">
 
         <div class="card-header bg-dark text-white">
-            Data Kategori Pelanggaran
+            Data Jenis Pelanggaran
         </div>
 
         <div class="card-body">
+
             <div class="table-responsive">
 
-                <table id="tabelKategori"
+                <table id="tabelJenis"
                     class="table table-bordered table-striped table-hover align-middle w-100">
 
                     <thead class="table-dark">
                         <tr>
                             <th>No</th>
-                            <th>Nama Kategori</th>
+                            <th>Kategori</th>
+                            <th>Kode</th>
+                            <th>Nama Pelanggaran</th>
+                            <th>Poin</th>
                             <th>Deskripsi</th>
-                            <th>Status</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
 
                     <tbody>
+
                         <?php $no = 1; ?>
 
                         <?php while ($r = mysqli_fetch_assoc($data)): ?>
+
                             <tr>
                                 <td><?= $no++; ?></td>
-
+                                <td><?= e($r['nama_kategori'] ?? '-'); ?></td>
+                                <td><?= e($r['kode']); ?></td>
                                 <td><?= e($r['nama']); ?></td>
-
-                                <td>
-                                    <?= !empty($r['deskripsi']) ? e($r['deskripsi']) : '-'; ?>
-                                </td>
-
-                                <td>
-                                    <?php if ($r['status_aktif'] == 1): ?>
-                                        <span class="badge bg-success">Aktif</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-secondary">Tidak Aktif</span>
-                                    <?php endif; ?>
-                                </td>
+                                <td><?= e($r['poin']); ?></td>
+                                <td><?= !empty($r['deskripsi']) ? e($r['deskripsi']) : '-'; ?></td>
 
                                 <td>
                                     <div class="d-flex gap-1">
-                                        <a href="kelola_kategori_pelanggaran.php?edit=<?= (int)$r['id']; ?>"
+
+                                        <a href="kelola_jenis_pelanggaran.php?edit=<?= (int)$r['id']; ?>"
                                             class="btn btn-sm btn-warning">
                                             Edit
                                         </a>
 
-                                        <a href="kelola_kategori_pelanggaran.php?hapus=<?= (int)$r['id']; ?>"
+                                        <a href="kelola_jenis_pelanggaran.php?hapus=<?= (int)$r['id']; ?>"
                                             class="btn btn-sm btn-danger"
-                                            onclick="return confirm('Yakin ingin menghapus kategori ini?')">
+                                            onclick="return confirm('Yakin ingin menghapus jenis pelanggaran ini?')">
                                             Hapus
                                         </a>
+
                                     </div>
                                 </td>
                             </tr>
+
                         <?php endwhile; ?>
 
                     </tbody>
+
                 </table>
 
             </div>
@@ -316,24 +382,26 @@ if (!$data) {
 
 </div>
 
-<!-- JAVASCRIPT DEPENDENCIES -->
+<!-- JAVASCRIPT -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.bootstrap5.min.js"></script>
 
-<!-- DATATABLES SAMA DENGAN KELOLA GURU -->
 <script>
 $(document).ready(function () {
-    $('#tabelKategori').DataTable({
+
+    $('#tabelJenis').DataTable({
+
         language: {
             search: "Cari data:",
             lengthMenu: "Tampilkan _MENU_ data",
-            info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data kategori",
-            infoEmpty: "Tidak ada data kategori",
+            info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data pelanggaran",
+            infoEmpty: "Tidak ada data pelanggaran",
             infoFiltered: "(difilter dari _MAX_ total data)",
-            zeroRecords: "Data kategori tidak ditemukan",
-            emptyTable: "Belum ada data kategori",
+            zeroRecords: "Data pelanggaran tidak ditemukan",
+            emptyTable: "Belum ada data pelanggaran",
+
             paginate: {
                 first: "Pertama",
                 last: "Terakhir",
@@ -348,12 +416,16 @@ $(document).ready(function () {
 
         columnDefs: [
             {
-                targets: [0, 4],
+                targets: [0, 6],
                 orderable: false,
                 searchable: false
             }
-        ]
+        ],
+
+        stateSave: false
+
     });
+
 });
 </script>
 

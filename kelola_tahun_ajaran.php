@@ -1,58 +1,93 @@
 
 <?php
-require_once 'koneksi.php';
+require_once __DIR__ . '/koneksi.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+// ===================================
+// AKTIFKAN SESSION
+// ===================================
+if (session_status() === PHP_SESSION_DISABLED) {
+    die("Session PHP dinonaktifkan oleh server!");
+}
+
+if (session_status() === PHP_SESSION_NONE) {
+    if (!session_start()) {
+        die("Gagal mengaktifkan session!");
+    }
+}
+
+// ===================================
+// CEK LOGIN ADMIN
+// ===================================
+if (
+    empty($_SESSION['user_id']) ||
+    strtolower(trim($_SESSION['role'] ?? '')) !== 'admin'
+) {
     header("Location: login.php");
     exit();
 }
 
-$role = $_SESSION['role'];
-$nama_user = $_SESSION['nama_user'] ?? 'Administrator Utama';
+$role = strtolower(trim($_SESSION['role']));
+$nama_user = $_SESSION['nama_user'] ?? $_SESSION['name'] ?? 'Administrator Utama';
 
+// ===================================
 // SIMPAN / UPDATE DATA
+// ===================================
 if (isset($_POST['simpan'])) {
-    $id = mysqli_real_escape_string($koneksi, $_POST['id']);
-    $nama = mysqli_real_escape_string($koneksi, $_POST['nama']);
-    $tanggal_mulai = mysqli_real_escape_string($koneksi, $_POST['tanggal_mulai']);
-    $tanggal_selesai = mysqli_real_escape_string($koneksi, $_POST['tanggal_selesai']);
-    $status_aktif = (int) $_POST['status_aktif'];
 
-    if ($id !== '') {
-        $query = "UPDATE t_tahun_ajaran
-                  SET nama='$nama',
-                      tanggal_mulai='$tanggal_mulai',
-                      tanggal_selesai='$tanggal_selesai',
-                      status_aktif='$status_aktif'
-                  WHERE id='$id'";
+    $id = (int)($_POST['id'] ?? 0);
+    $nama = mysqli_real_escape_string($koneksi, $_POST['nama'] ?? '');
+    $tanggal_mulai = mysqli_real_escape_string($koneksi, $_POST['tanggal_mulai'] ?? '');
+    $tanggal_selesai = mysqli_real_escape_string($koneksi, $_POST['tanggal_selesai'] ?? '');
+    $status_aktif = (int)($_POST['status_aktif'] ?? 0);
+
+    if ($id > 0) {
+        $query = mysqli_query($koneksi, "
+            UPDATE t_tahun_ajaran SET
+                nama='$nama',
+                tanggal_mulai='$tanggal_mulai',
+                tanggal_selesai='$tanggal_selesai',
+                status_aktif='$status_aktif'
+            WHERE id='$id'
+        ");
     } else {
-        $query = "INSERT INTO t_tahun_ajaran
-                  (nama, tanggal_mulai, tanggal_selesai, status_aktif)
-                  VALUES
-                  ('$nama', '$tanggal_mulai', '$tanggal_selesai', '$status_aktif')";
+        $query = mysqli_query($koneksi, "
+            INSERT INTO t_tahun_ajaran
+            (nama, tanggal_mulai, tanggal_selesai, status_aktif)
+            VALUES
+            ('$nama', '$tanggal_mulai', '$tanggal_selesai', '$status_aktif')
+        ");
     }
 
-    if (mysqli_query($koneksi, $query)) {
-        header("Location: kelola_tahun_ajaran.php");
-        exit();
-    } else {
+    if (!$query) {
         die("Gagal menyimpan data: " . mysqli_error($koneksi));
     }
+
+    header("Location: kelola_tahun_ajaran.php");
+    exit();
 }
 
+// ===================================
 // HAPUS DATA
+// ===================================
 if (isset($_GET['hapus'])) {
-    $id_hapus = mysqli_real_escape_string($koneksi, $_GET['hapus']);
 
-    if (mysqli_query($koneksi, "DELETE FROM t_tahun_ajaran WHERE id='$id_hapus'")) {
-        header("Location: kelola_tahun_ajaran.php");
-        exit();
-    } else {
+    $id_hapus = (int)$_GET['hapus'];
+
+    $hapus = mysqli_query($koneksi, "
+        DELETE FROM t_tahun_ajaran WHERE id='$id_hapus'
+    ");
+
+    if (!$hapus) {
         die("Gagal menghapus data: " . mysqli_error($koneksi));
     }
+
+    header("Location: kelola_tahun_ajaran.php");
+    exit();
 }
 
+// ===================================
 // DATA FORM EDIT
+// ===================================
 $edit = [
     'id' => '',
     'nama' => '',
@@ -61,21 +96,35 @@ $edit = [
     'status_aktif' => '1'
 ];
 
-if (isset($_GET['edit'])) {
-    $id_edit = mysqli_real_escape_string($koneksi, $_GET['edit']);
-    $hasil_edit = mysqli_query(
-        $koneksi,
-        "SELECT * FROM t_tahun_ajaran WHERE id='$id_edit'"
-    );
+$id_edit = (int)($_GET['edit'] ?? 0);
 
-    if ($hasil_edit && mysqli_num_rows($hasil_edit) > 0) {
+if ($id_edit > 0) {
+
+    $hasil_edit = mysqli_query($koneksi, "
+        SELECT * FROM t_tahun_ajaran WHERE id='$id_edit'
+    ");
+
+    if (!$hasil_edit) {
+        die("Gagal mengambil data edit: " . mysqli_error($koneksi));
+    }
+
+    if (mysqli_num_rows($hasil_edit) > 0) {
         $edit = mysqli_fetch_assoc($hasil_edit);
     }
 }
 
+// ===================================
 // AMBIL SEMUA DATA
-$data = mysqli_query($koneksi, "SELECT * FROM t_tahun_ajaran");
+// ===================================
+$data = mysqli_query($koneksi, "
+    SELECT * FROM t_tahun_ajaran ORDER BY id ASC
+");
+
+if (!$data) {
+    die("Gagal mengambil data: " . mysqli_error($koneksi));
+}
 ?>
+
 
 <!DOCTYPE html>
 <html lang="id">

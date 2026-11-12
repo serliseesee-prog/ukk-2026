@@ -1,53 +1,134 @@
-<?php
-require_once 'koneksi.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+<?php
+require_once __DIR__ . '/koneksi.php';
+
+// ===================================
+// AKTIFKAN SESSION
+// ===================================
+if (session_status() === PHP_SESSION_DISABLED) {
+    die("Session PHP dinonaktifkan oleh server!");
+}
+
+if (session_status() === PHP_SESSION_NONE) {
+    if (!session_start()) {
+        die("Gagal mengaktifkan session!");
+    }
+}
+
+// ===================================
+// CEK LOGIN ADMIN
+// ===================================
+if (
+    empty($_SESSION['user_id']) ||
+    strtolower(trim($_SESSION['role'] ?? '')) !== 'admin'
+) {
     header("Location: login.php");
     exit();
 }
 
-// PROSES SIMPAN
+// ===================================
+// PROSES SIMPAN DATA
+// ===================================
 if (isset($_POST['simpan'])) {
-    $id = $_POST['id'] ?? '';
-    $nama = mysqli_real_escape_string($koneksi, $_POST['nama']);
-    $tingkat = mysqli_real_escape_string($koneksi, $_POST['tingkat']);
-    $jurusan = mysqli_real_escape_string($koneksi, $_POST['jurusan']);
-    $status = $_POST['status_aktif'] == 'Aktif' ? 1 : 0;
 
-    if ($id) {
-        mysqli_query($koneksi, "UPDATE t_kelas SET nama='$nama', tingkat='$tingkat', jurusan='$jurusan', status_aktif='$status', updated_at=NOW() WHERE id='$id'");
+    $id = (int)($_POST['id'] ?? 0);
+    $nama = mysqli_real_escape_string($koneksi, $_POST['nama'] ?? '');
+    $tingkat = mysqli_real_escape_string($koneksi, $_POST['tingkat'] ?? '');
+    $jurusan = mysqli_real_escape_string($koneksi, $_POST['jurusan'] ?? '');
+    $status = ($_POST['status_aktif'] ?? '') == 'Aktif' ? 1 : 0;
+
+    if ($id > 0) {
+
+        $query = mysqli_query($koneksi, "
+            UPDATE t_kelas SET
+            nama='$nama',
+            tingkat='$tingkat',
+            jurusan='$jurusan',
+            status_aktif='$status',
+            updated_at=NOW()
+            WHERE id='$id'
+        ");
+
     } else {
-        mysqli_query($koneksi, "INSERT INTO t_kelas (nama, tingkat, jurusan, status_aktif, created_at, updated_at) VALUES ('$nama', '$tingkat', '$jurusan', '$status', NOW(), NOW())");
+
+        $query = mysqli_query($koneksi, "
+            INSERT INTO t_kelas
+            (nama, tingkat, jurusan, status_aktif, created_at, updated_at)
+            VALUES
+            ('$nama', '$tingkat', '$jurusan', '$status', NOW(), NOW())
+        ");
+    }
+
+    if (!$query) {
+        die("Gagal menyimpan data: " . mysqli_error($koneksi));
     }
 
     header("Location: kelola_kelas.php");
     exit();
 }
 
-// PROSES HAPUS
+// ===================================
+// PROSES HAPUS DATA
+// ===================================
 if (isset($_GET['hapus'])) {
+
     $id = (int)$_GET['hapus'];
 
-    mysqli_query($koneksi, "DELETE FROM t_pelanggaran_siswa WHERE kelas_id='$id'");
-    mysqli_query($koneksi, "DELETE FROM t_kelas_siswa WHERE kelas_id='$id'");
-    mysqli_query($koneksi, "DELETE FROM t_wali_kelas WHERE kelas_id='$id'");
-    mysqli_query($koneksi, "DELETE FROM t_kelas WHERE id='$id'");
+    mysqli_query($koneksi, "
+        DELETE FROM t_pelanggaran_siswa WHERE kelas_id='$id'
+    ");
+
+    mysqli_query($koneksi, "
+        DELETE FROM t_kelas_siswa WHERE kelas_id='$id'
+    ");
+
+    mysqli_query($koneksi, "
+        DELETE FROM t_wali_kelas WHERE kelas_id='$id'
+    ");
+
+    $hapus = mysqli_query($koneksi, "
+        DELETE FROM t_kelas WHERE id='$id'
+    ");
+
+    if (!$hapus) {
+        die("Gagal menghapus data: " . mysqli_error($koneksi));
+    }
 
     header("Location: kelola_kelas.php");
     exit();
 }
 
+// ===================================
 // DATA EDIT
-$edit_id = $_GET['edit'] ?? '';
-$edit = $edit_id ? mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT * FROM t_kelas WHERE id='$edit_id'")) : null;
+// ===================================
+$edit_id = (int)($_GET['edit'] ?? 0);
+$edit = null;
 
-// AMBIL DATA KELAS (Diurutkan berdasarkan id ASC agar data input terakhir muncul di paling bawah)
-$data = mysqli_query($koneksi, "SELECT * FROM t_kelas ORDER BY id ASC");
+if ($edit_id > 0) {
+
+    $hasil = mysqli_query($koneksi, "
+        SELECT * FROM t_kelas WHERE id='$edit_id'
+    ");
+
+    if (!$hasil) {
+        die("Gagal mengambil data edit: " . mysqli_error($koneksi));
+    }
+
+    $edit = mysqli_fetch_assoc($hasil);
+}
+
+// ===================================
+// AMBIL DATA KELAS
+// ===================================
+$data = mysqli_query($koneksi, "
+    SELECT * FROM t_kelas ORDER BY id ASC
+");
 
 if (!$data) {
-    die("Gagal mengambil data: " . htmlspecialchars(mysqli_error($koneksi)));
+    die("Gagal mengambil data: " . mysqli_error($koneksi));
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="id">

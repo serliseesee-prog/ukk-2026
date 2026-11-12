@@ -1,5 +1,6 @@
 <?php
 require_once 'koneksi.php';
+require_once 'auth_check.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
 $conn = $conn ?? ($koneksi ?? null);

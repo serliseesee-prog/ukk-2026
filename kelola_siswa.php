@@ -1,21 +1,46 @@
-<?php
-require_once 'koneksi.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+<?php
+require_once __DIR__ . '/koneksi.php';
+
+// ===================================
+// AKTIFKAN SESSION
+// ===================================
+if (session_status() === PHP_SESSION_DISABLED) {
+    die("Session PHP dinonaktifkan oleh server!");
+}
+
+if (session_status() === PHP_SESSION_NONE) {
+    if (!session_start()) {
+        die("Gagal mengaktifkan session!");
+    }
+}
+
+// ===================================
+// CEK SESSION LOGIN ADMIN
+// ===================================
+if (
+    !isset($_SESSION['user_id']) ||
+    empty($_SESSION['user_id']) ||
+    !isset($_SESSION['role']) ||
+    strtolower(trim($_SESSION['role'])) !== 'admin'
+) {
     header("Location: login.php");
     exit();
 }
 
-// SIMPAN DATA
+// ===================================
+// SIMPAN DATA SISWA
+// ===================================
 if (isset($_POST['simpan'])) {
+
     $id = (int)($_POST['id'] ?? 0);
-    $nis = mysqli_real_escape_string($koneksi, $_POST['nis']);
-    $nisn = mysqli_real_escape_string($koneksi, $_POST['nisn']);
-    $nama = mysqli_real_escape_string($koneksi, $_POST['nama']);
-    $jk = $_POST['jenis_kelamin'];
-    $tgl = $_POST['tanggal_lahir'];
-    $alamat = mysqli_real_escape_string($koneksi, $_POST['alamat']);
-    $status = $_POST['status_aktif'] == 'Aktif' ? 1 : 0;
+    $nis = mysqli_real_escape_string($koneksi, $_POST['nis'] ?? '');
+    $nisn = mysqli_real_escape_string($koneksi, $_POST['nisn'] ?? '');
+    $nama = mysqli_real_escape_string($koneksi, $_POST['nama'] ?? '');
+    $jk = $_POST['jenis_kelamin'] ?? '';
+    $tgl = $_POST['tanggal_lahir'] ?? '';
+    $alamat = mysqli_real_escape_string($koneksi, $_POST['alamat'] ?? '');
+    $status = ($_POST['status_aktif'] ?? '') == 'Aktif' ? 1 : 0;
 
     if (!preg_match('/^[0-9]{10}$/', $nis)) {
         echo "<script>alert('NIS harus 10 angka!');history.back();</script>";
@@ -28,58 +53,117 @@ if (isset($_POST['simpan'])) {
     }
 
     // CEK DUPLIKAT
-    $cek = mysqli_query($koneksi, "SELECT id FROM t_siswa
+    $cek = mysqli_query($koneksi, "
+        SELECT id FROM t_siswa
         WHERE (nis='$nis' OR (nisn='$nisn' AND nisn!=''))
-        AND id!='$id'");
+        AND id!='$id'
+    ");
+
+    if (!$cek) {
+        die("Gagal mengecek data: " . mysqli_error($koneksi));
+    }
 
     if (mysqli_num_rows($cek) > 0) {
         echo "<script>alert('NIS atau NISN sudah digunakan!');history.back();</script>";
         exit();
     }
 
-    if ($id) {
-        mysqli_query($koneksi, "UPDATE t_siswa SET
-            nis='$nis', nisn='$nisn', nama='$nama',
-            jenis_kelamin='$jk', tanggal_lahir='$tgl',
-            alamat='$alamat', status_aktif='$status',
-            updated_at=NOW() WHERE id='$id'");
+    // UPDATE DATA
+    if ($id > 0) {
+
+        $query = mysqli_query($koneksi, "
+            UPDATE t_siswa SET
+            nis='$nis',
+            nisn='$nisn',
+            nama='$nama',
+            jenis_kelamin='$jk',
+            tanggal_lahir='$tgl',
+            alamat='$alamat',
+            status_aktif='$status',
+            updated_at=NOW()
+            WHERE id='$id'
+        ");
+
     } else {
-        mysqli_query($koneksi, "INSERT INTO t_siswa
+
+        // TAMBAH DATA
+        $query = mysqli_query($koneksi, "
+            INSERT INTO t_siswa
             (nis, nisn, nama, jenis_kelamin, tanggal_lahir,
             alamat, status_aktif, created_at, updated_at)
-            VALUES ('$nis','$nisn','$nama','$jk','$tgl',
-            '$alamat','$status',NOW(),NOW())");
+            VALUES
+            ('$nis','$nisn','$nama','$jk','$tgl',
+            '$alamat','$status',NOW(),NOW())
+        ");
+    }
+
+    if (!$query) {
+        die("Gagal menyimpan data: " . mysqli_error($koneksi));
     }
 
     header("Location: kelola_siswa.php");
     exit();
 }
 
-// HAPUS DATA
+// ===================================
+// HAPUS DATA SISWA
+// ===================================
 if (isset($_GET['hapus'])) {
+
     $id = (int)$_GET['hapus'];
 
-    mysqli_query($koneksi, "DELETE FROM t_pelanggaran_siswa WHERE siswa_id='$id'");
-    mysqli_query($koneksi, "DELETE FROM t_kelas_siswa WHERE siswa_id='$id'");
-    mysqli_query($koneksi, "DELETE FROM t_siswa WHERE id='$id'");
+    mysqli_query($koneksi, "
+        DELETE FROM t_pelanggaran_siswa WHERE siswa_id='$id'
+    ");
+
+    mysqli_query($koneksi, "
+        DELETE FROM t_kelas_siswa WHERE siswa_id='$id'
+    ");
+
+    $hapus = mysqli_query($koneksi, "
+        DELETE FROM t_siswa WHERE id='$id'
+    ");
+
+    if (!$hapus) {
+        die("Gagal menghapus data: " . mysqli_error($koneksi));
+    }
 
     header("Location: kelola_siswa.php");
     exit();
 }
 
-// EDIT DATA
+// ===================================
+// EDIT DATA SISWA
+// ===================================
 $edit_id = (int)($_GET['edit'] ?? 0);
-$edit = $edit_id ? mysqli_fetch_assoc(
-    mysqli_query($koneksi, "SELECT * FROM t_siswa WHERE id='$edit_id'")
-) : null;
 
-// AMBIL DATA SISWA (Diubah urutannya berdasarkan ID atau waktu input secara Ascending agar input terakhir di bawah)
-$data = mysqli_query($koneksi, "SELECT * FROM t_siswa ORDER BY id ASC");
+$edit = null;
+
+if ($edit_id > 0) {
+
+    $hasil = mysqli_query($koneksi, "
+        SELECT * FROM t_siswa WHERE id='$edit_id'
+    ");
+
+    if (!$hasil) {
+        die("Gagal mengambil data: " . mysqli_error($koneksi));
+    }
+
+    $edit = mysqli_fetch_assoc($hasil);
+}
+
+// ===================================
+// AMBIL DATA SISWA
+// ===================================
+$data = mysqli_query($koneksi, "
+    SELECT * FROM t_siswa ORDER BY id ASC
+");
 
 if (!$data) {
-    die("Gagal mengambil data siswa: " . htmlspecialchars(mysqli_error($koneksi)));
+    die("Gagal mengambil data siswa: " . mysqli_error($koneksi));
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="id">

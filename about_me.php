@@ -1,13 +1,19 @@
 
 <?php
-require_once 'koneksi.php';
+require_once __DIR__ . '/koneksi.php';
 
-if (!isset($_SESSION['user_id'])) {
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
+$user_id = $_SESSION['user_id'] ?? '';
+$role = strtolower(trim($_SESSION['role'] ?? ''));
+
+if (empty($user_id) || !in_array($role, ['admin', 'guru'], true)) {
     header("Location: login.php");
     exit();
 }
 
-$role = $_SESSION['role'];
 $nama = "Sherly Satriani";
 ?>
 
@@ -112,18 +118,12 @@ $nama = "Sherly Satriani";
             </li>
 
             <li class="nav-item mb-1">
-                <a href="kelola_kategori_pelanggaran.php">
-                    Kelola Kategori Pelanggaran
-                </a>
+                <a href="kelola_kategori_pelanggaran.php">Kelola Kategori Pelanggaran</a>
             </li>
 
             <li class="nav-item mb-1">
-                <a href="kelola_jenis_pelanggaran.php">
-                    Kelola Jenis Pelanggaran
-                </a>
+                <a href="kelola_jenis_pelanggaran.php">Kelola Jenis Pelanggaran</a>
             </li>
-             
-                 
 
         <?php elseif ($role === 'guru'): ?>
 
@@ -138,23 +138,20 @@ $nama = "Sherly Satriani";
             <li class="nav-item mb-1">
                 <a href="riwayat.php">Riwayat</a>
             </li>
-        
 
             <li class="nav-item mb-1">
                 <a href="rekap_poin.php">Rekap Poin</a>
             </li>
+
+            <li class="nav-item mb-1">
+                <a href="laporan.php">Laporan</a>
             </li>
-                     <li class="nav-item mb-1">
-                    <a href="laporan.php">Laporan</a>
-                </li>
 
         <?php endif; ?>
-                 
-                
+
         <li class="nav-item mb-1">
             <a href="about_me.php" class="active">About Me</a>
         </li>
-        
 
     </ul>
 
@@ -162,42 +159,42 @@ $nama = "Sherly Satriani";
     <a href="logout.php" class="text-danger">Logout</a>
 </div>
 
-        <!-- Konten -->
-        <div class="col-md-9 col-lg-10 main-content">
-            <h1 class="fw-bold">About Me</h1>
-            <p class="text-secondary">Informasi profil pengembang atau pengguna sistem.</p>
-            <hr>
+<!-- KONTEN -->
+<div class="main-content">
+    <h1 class="fw-bold">About Me</h1>
+    <p class="text-secondary">Informasi profil pengembang atau pengguna sistem.</p>
+    <hr>
 
-            <div class="profile-wrapper">
-                <div class="card profile-card">
-                    <div class="card-body text-center p-4">
+    <div class="profile-wrapper">
+        <div class="card profile-card">
+            <div class="card-body text-center p-4">
 
-                        <img src="serli.jpeg" alt="Foto Sherly Satriani" class="profile-photo mb-3" width="150" height="200">
+               <img src="serli.jpeg"
+     alt="Foto Sherly Satriani"
+     width="150"
+     height="200"
+     style="object-fit: cover;">
+                <h3 class="fw-bold">
+                    <?= htmlspecialchars($nama); ?>
+                </h3>
 
-                        <h3 class="fw-bold">
-                            <?= htmlspecialchars($nama); ?>
-                        </h3>
+                <span class="badge bg-danger">
+                    <?= strtoupper(htmlspecialchars($role)); ?>
+                </span>
 
-                        <span class="badge bg-danger">
-                            <?= strtoupper(htmlspecialchars($role)); ?>
-                        </span>
+                <hr>
 
-                        <hr>
-
-                        <div class="profile-info">
-                            <p><strong>Aplikasi:</strong> Sistem Informasi Pelanggaran Siswa</p>
-                            <p><strong>Institusi:</strong> SMK Muhammadiyah</p>
-                            <p><strong>Tahun:</strong> 2026</p>
-                        </div>
-
-                    </div>
+                <div class="profile-info">
+                    <p><strong>Aplikasi:</strong> Sistem Informasi Pelanggaran Siswa</p>
+                    <p><strong>Institusi:</strong> SMK Muhammadiyah</p>
+                    <p><strong>Tahun:</strong> 2026</p>
                 </div>
+
             </div>
         </div>
-
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
